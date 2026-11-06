@@ -1,0 +1,586 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CCDC Toolkit" Height="840" Width="1280" MinHeight="620" MinWidth="1000"
+        WindowStartupLocation="CenterScreen" Background="#1E1E24">
+    <!--
+      Deliberately flat, solid colours and no animation: this is driven over a
+      remote-desktop session, where gradients and transitions compress badly and
+      make the window feel slow. Every control the code touches has an x:Name,
+      and tests\Ui.Tests.ps1 checks that each name the script looks up really
+      exists here, so a rename cannot silently break a button.
+    -->
+    <Window.Resources>
+        <SolidColorBrush x:Key="Bg"        Color="#1E1E24"/>
+        <SolidColorBrush x:Key="Panel"     Color="#26262E"/>
+        <SolidColorBrush x:Key="PanelAlt"  Color="#2E2E38"/>
+        <SolidColorBrush x:Key="Line"      Color="#3A3A46"/>
+        <SolidColorBrush x:Key="Text"      Color="#E6E6EB"/>
+        <SolidColorBrush x:Key="Muted"     Color="#9A9AA8"/>
+        <SolidColorBrush x:Key="Accent"    Color="#4C8DFF"/>
+        <SolidColorBrush x:Key="Good"      Color="#3FB950"/>
+        <SolidColorBrush x:Key="Warn"      Color="#D29922"/>
+        <SolidColorBrush x:Key="Bad"       Color="#F85149"/>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <Style x:Key="H1" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
+            <Setter Property="FontSize" Value="19"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style x:Key="Sub" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PanelAlt}"/>
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="#3A3A46"/>
+                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="b" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#2C5FA8"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+        </Style>
+        <Style x:Key="Danger" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#6E2B28"/>
+            <Setter Property="BorderBrush" Value="#A33A35"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#1A1A20"/>
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="7,5"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="CaretBrush" Value="{StaticResource Text}"/>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#1A1A20"/>
+            <Setter Property="Foreground" Value="#1E1E24"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+            <Setter Property="Padding" Value="7,5"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="{StaticResource Panel}"/>
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#32323C"/>
+            <Setter Property="RowBackground" Value="{StaticResource Panel}"/>
+            <Setter Property="AlternatingRowBackground" Value="#2A2A33"/>
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+            <Setter Property="RowHeaderWidth" Value="0"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="CanUserResizeRows" Value="False"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#33333E"/>
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="9,7"/>
+            <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Setter Property="Padding" Value="9,6"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#2C5FA8"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="b" Background="Transparent" BorderBrush="Transparent" BorderThickness="3,0,0,0" Padding="16,11">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="#2E2E38"/>
+                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- header: which box am I on, and is it healthy -->
+        <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="18,13">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border x:Name="HealthPill" Background="#3A3A46" CornerRadius="4" Padding="11,5" Margin="0,0,16,0">
+                        <TextBlock x:Name="HealthPillText" Text="checking..." FontFamily="Segoe UI Semibold" FontSize="13" Foreground="White"/>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock x:Name="HostText" Text="host" FontFamily="Segoe UI Semibold" FontSize="16"/>
+                        <TextBlock x:Name="DomainText" Text="domain" Foreground="{StaticResource Muted}" FontSize="12"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="26,0,0,0">
+                    <TextBlock x:Name="UserText" Text="user" FontSize="12" Foreground="{StaticResource Muted}"/>
+                    <TextBlock x:Name="ElevatedText" Text="elevation" FontSize="12" Foreground="{StaticResource Muted}"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="RefreshButton" Content="Refresh" Style="{StaticResource Primary}"/>
+                    <Button x:Name="OpenLogsButton" Content="Open logs folder"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- shown only when not elevated -->
+        <Border x:Name="ElevationBanner" Grid.Row="1" Background="#4A3A12" BorderBrush="#D29922" BorderThickness="0,0,0,1" Padding="18,9" Visibility="Collapsed">
+            <TextBlock x:Name="ElevationBannerText" TextWrapping="Wrap" Foreground="#FFE9B8"
+                       Text="This window is not running as Administrator. Read-only views will mostly work; anything that changes accounts, services or the firewall will fail. Close this and start it again from an elevated PowerShell."/>
+        </Border>
+
+        <TabControl Grid.Row="2" TabStripPlacement="Left" Background="{StaticResource Bg}" BorderThickness="0">
+            <!-- ============================ Dashboard ============================ -->
+            <TabItem Header="Dashboard">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="22,18">
+                    <StackPanel>
+                        <TextBlock Text="Health" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="A read-only look at the things that cost points. Nothing here changes anything."/>
+                        <ItemsControl x:Name="HealthCards" Margin="0,0,0,22">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#26262E" BorderBrush="#3A3A46" BorderThickness="1" CornerRadius="5"
+                                            Width="292" MinHeight="112" Margin="0,0,13,13" Padding="14,11">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
+                                                <Border Width="9" Height="9" CornerRadius="5" Background="{Binding StatusBrush}" VerticalAlignment="Center" Margin="0,0,9,0"/>
+                                                <TextBlock Text="{Binding Title}" FontFamily="Segoe UI Semibold" FontSize="13"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Value}" FontSize="19" Foreground="{Binding StatusBrush}" Margin="0,0,0,5"/>
+                                            <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" FontSize="11.5" Foreground="#9A9AA8"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="Scored services on this host" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="Taken from ScoredServices in config\answers.local.psd1, checked against what is listening right now. This is a local check: a port can be listening while a firewall in front of it drops the traffic, so Up means the service is running, not that the scoring engine can reach it."/>
+                        <DataGrid x:Name="ScoredGrid" MinHeight="130" MaxHeight="290">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Service" Binding="{Binding Service}" Width="170"/>
+                                <DataGridTextColumn Header="Proto" Binding="{Binding Protocol}" Width="70"/>
+                                <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="110"/>
+                                <DataGridTemplateColumn Header="Status" Width="100">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Status}" Foreground="{Binding StatusBrush}" FontFamily="Segoe UI Semibold"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="What that means" Binding="{Binding Detail}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ Accounts ============================ -->
+            <TabItem Header="Accounts">
+                <Grid Margin="22,18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Accounts" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="For the injects that ask you to create, disable or reset somebody. Every change is backed up and written to this session's log, and new passwords go to a file under logs\ -- they are never typed by you and never guessable."/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,11">
+                        <ComboBox x:Name="AccountScopeCombo" Width="150" Margin="0,0,9,0"/>
+                        <TextBox x:Name="AccountFilterBox" Width="230" Margin="0,0,9,0" ToolTip="Part of a name; blank lists everything"/>
+                        <Button x:Name="AccountSearchButton" Content="List accounts" Style="{StaticResource Primary}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="AccountGrid" Grid.Row="2">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
+                            <DataGridTextColumn Header="Enabled" Binding="{Binding Enabled}" Width="80"/>
+                            <DataGridTextColumn Header="Last logon" Binding="{Binding LastLogon}" Width="150"/>
+                            <DataGridTextColumn Header="Password set" Binding="{Binding PasswordSet}" Width="150"/>
+                            <DataGridTextColumn Header="Groups / note" Binding="{Binding Note}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="3" Margin="0,13,0,0">
+                        <TextBlock Text="With the selected account" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,11">
+                            <Button x:Name="AccountResetButton" Content="Reset password" Style="{StaticResource Primary}"/>
+                            <Button x:Name="AccountDisableButton" Content="Disable" Style="{StaticResource Danger}"/>
+                            <Button x:Name="AccountEnableButton" Content="Enable"/>
+                            <TextBox x:Name="AccountGroupBox" Width="180" Margin="18,0,8,0" ToolTip="Group name"/>
+                            <Button x:Name="AccountAddGroupButton" Content="Add to group"/>
+                            <Button x:Name="AccountRemoveGroupButton" Content="Remove from group"/>
+                        </StackPanel>
+                        <TextBlock Text="Create a new account" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="AccountNewName" Width="190" Margin="0,0,8,0" ToolTip="Login name"/>
+                            <TextBox x:Name="AccountNewGroup" Width="180" Margin="0,0,8,0" ToolTip="Group to add them to (optional)"/>
+                            <Button x:Name="AccountCreateButton" Content="Create account" Style="{StaticResource Primary}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ DNS ============================ -->
+            <TabItem Header="DNS">
+                <Grid Margin="22,18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="170"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="DNS" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="Zones, records and the three hardening changes Invoke-DnsHardening.ps1 makes -- this tab calls the exact same logic, so the wording here and in that module's own report always agree. Pick a zone below, then list its records."/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="DnsListZonesButton" Content="List zones" Style="{StaticResource Primary}"/>
+                        <Button x:Name="DnsHardenCacheButton" Content="Harden cache (server-wide)" Margin="18,0,8,0"/>
+                    </StackPanel>
+                    <DataGrid x:Name="DnsZoneGrid" Grid.Row="2" Margin="0,0,0,10">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Zone" Binding="{Binding ZoneName}" Width="220"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding ZoneType}" Width="80"/>
+                            <DataGridTextColumn Header="AD-integrated" Binding="{Binding DsIntegrated}" Width="100"/>
+                            <DataGridTemplateColumn Header="Zone transfers" Width="130">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Transfers}" Foreground="{Binding TransfersBrush}" FontFamily="Segoe UI Semibold"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Dynamic updates" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Updates}" Foreground="{Binding UpdatesBrush}" FontFamily="Segoe UI Semibold"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="DnsListRecordsButton" Content="List records in selected zone" Style="{StaticResource Primary}"/>
+                        <Button x:Name="DnsSecureTransfersButton" Content="Secure transfers (selected zone)" Margin="18,0,8,0"/>
+                        <Button x:Name="DnsSecureUpdatesButton" Content="Secure dynamic updates (selected zone)"/>
+                    </StackPanel>
+                    <DataGrid x:Name="DnsRecordGrid" Grid.Row="4">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding HostName}" Width="190"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding RecordType}" Width="80"/>
+                            <DataGridTextColumn Header="Data" Binding="{Binding Data}" Width="260"/>
+                            <DataGridTextColumn Header="TTL" Binding="{Binding Ttl}" Width="80"/>
+                            <DataGridTextColumn Header="Worth a look" Binding="{Binding Flags}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="5" Margin="0,13,0,0">
+                        <TextBlock Text="Add a record to the selected zone" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="DnsRecordName" Width="160" Margin="0,0,8,0" ToolTip="Host name, e.g. app01"/>
+                            <ComboBox x:Name="DnsRecordTypeCombo" Width="90" Margin="0,0,8,0"/>
+                            <TextBox x:Name="DnsRecordValue" Width="190" Margin="0,0,8,0" ToolTip="A: IP address.  CNAME: target host.  TXT: text."/>
+                            <TextBox x:Name="DnsRecordTtl" Width="90" Margin="0,0,8,0" ToolTip="TTL in seconds (blank = 3600)"/>
+                            <Button x:Name="DnsAddRecordButton" Content="Add record" Style="{StaticResource Primary}"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock Text="With the selected record:" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button x:Name="DnsRemoveRecordButton" Content="Remove record" Style="{StaticResource Danger}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Services ============================ -->
+            <TabItem Header="Services">
+                <Grid Margin="22,18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Services" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="Anything a scored service depends on lives here. Services whose binary sits somewhere unusual are called out -- that is a place things get hidden."/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,11">
+                        <TextBox x:Name="ServiceFilterBox" Width="230" Margin="0,0,9,0" ToolTip="Part of a service name; blank lists everything"/>
+                        <Button x:Name="ServiceSearchButton" Content="List services" Style="{StaticResource Primary}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="ServiceGrid" Grid.Row="2">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="190"/>
+                            <DataGridTemplateColumn Header="State" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding State}" Foreground="{Binding StatusBrush}" FontFamily="Segoe UI Semibold"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Startup" Binding="{Binding StartMode}" Width="90"/>
+                            <DataGridTextColumn Header="Runs as" Binding="{Binding Account}" Width="170"/>
+                            <DataGridTextColumn Header="Binary" Binding="{Binding Path}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,13,0,0">
+                        <Button x:Name="ServiceStartButton" Content="Start" Style="{StaticResource Primary}"/>
+                        <Button x:Name="ServiceStopButton" Content="Stop" Style="{StaticResource Danger}"/>
+                        <Button x:Name="ServiceRestartButton" Content="Restart"/>
+                        <ComboBox x:Name="ServiceStartupCombo" Width="130" Margin="18,0,8,0"/>
+                        <Button x:Name="ServiceSetStartupButton" Content="Set startup type"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Scheduled Tasks ============================ -->
+            <TabItem Header="Tasks">
+                <Grid Margin="22,18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Scheduled Tasks" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="The threat hunt already tells you about a new task; this is what to do about it. A task whose action runs from an unusual location is called out the same way an odd service is on the Services tab."/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,11">
+                        <TextBox x:Name="TaskFilterBox" Width="230" Margin="0,0,9,0" ToolTip="Part of a task name or path; blank lists everything"/>
+                        <Button x:Name="TaskSearchButton" Content="List tasks" Style="{StaticResource Primary}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="TaskGrid" Grid.Row="2">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Task" Binding="{Binding Path}" Width="260"/>
+                            <DataGridTemplateColumn Header="State" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding State}" Foreground="{Binding StatusBrush}" FontFamily="Segoe UI Semibold"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Runs as" Binding="{Binding RunAs}" Width="150"/>
+                            <DataGridTextColumn Header="Last run" Binding="{Binding LastRun}" Width="140"/>
+                            <DataGridTextColumn Header="Action" Binding="{Binding Command}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="3" Margin="0,13,0,0">
+                        <TextBlock Text="With the selected task" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,11">
+                            <Button x:Name="TaskDisableButton" Content="Disable"/>
+                            <Button x:Name="TaskEnableButton" Content="Enable"/>
+                            <Button x:Name="TaskDeleteButton" Content="Delete" Style="{StaticResource Danger}"/>
+                        </StackPanel>
+                        <TextBlock Text="Create a new task" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="TaskNewName" Width="150" Margin="0,0,8,0" ToolTip="Task name"/>
+                            <TextBox x:Name="TaskNewCommand" Width="220" Margin="0,0,8,0" ToolTip="Program to run, e.g. C:\Windows\System32\cmd.exe"/>
+                            <TextBox x:Name="TaskNewArgs" Width="170" Margin="0,0,8,0" ToolTip="Arguments (optional)"/>
+                            <ComboBox x:Name="TaskNewTrigger" Width="120" Margin="0,0,8,0"/>
+                            <Button x:Name="TaskCreateButton" Content="Create task" Style="{StaticResource Primary}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Firewall ============================ -->
+            <TabItem Header="Firewall">
+                <Grid Margin="22,18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Firewall" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="One rule at a time, for the inject that says 'allow this' or 'block that'. The default-block sweep with its own safety net lives on the Modules tab (Firewall baseline) -- that is the one place a mistake can lock out every scoring check at once, so it stays a deliberate, standalone run rather than a quick button. Blank filter lists every rule, including Windows' own -- type something to narrow it down."/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,11">
+                        <TextBox x:Name="FirewallFilterBox" Width="230" Margin="0,0,9,0" ToolTip="Part of a rule name; blank lists everything"/>
+                        <Button x:Name="FirewallSearchButton" Content="List rules" Style="{StaticResource Primary}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="FirewallGrid" Grid.Row="2">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Rule" Binding="{Binding Name}" Width="220"/>
+                            <DataGridTextColumn Header="Direction" Binding="{Binding Direction}" Width="80"/>
+                            <DataGridTemplateColumn Header="Action" Width="80">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Action}" Foreground="{Binding ActionBrush}" FontFamily="Segoe UI Semibold"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Enabled" Binding="{Binding Enabled}" Width="80"/>
+                            <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="80"/>
+                            <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="110"/>
+                            <DataGridTextColumn Header="Remote address" Binding="{Binding RemoteAddress}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,13,0,11">
+                        <TextBlock Text="With the selected rule:" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button x:Name="FirewallDisableButton" Content="Disable"/>
+                        <Button x:Name="FirewallEnableButton" Content="Enable"/>
+                        <Button x:Name="FirewallRemoveButton" Content="Remove" Style="{StaticResource Danger}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="4">
+                        <TextBlock Text="Add a rule" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="FwNewName" Width="150" Margin="0,0,8,0" ToolTip="Rule name"/>
+                            <ComboBox x:Name="FwDirectionCombo" Width="90" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="FwActionCombo" Width="90" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="FwProtocolCombo" Width="80" Margin="0,0,8,0"/>
+                            <TextBox x:Name="FwPortBox" Width="90" Margin="0,0,8,0" ToolTip="Port (optional for ICMP)"/>
+                            <TextBox x:Name="FwRemoteAddressBox" Width="140" Margin="0,0,8,0" ToolTip="Remote IP or CIDR (optional; blank = Any)"/>
+                            <Button x:Name="FirewallAddButton" Content="Add rule" Style="{StaticResource Primary}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Modules ============================ -->
+            <TabItem Header="Modules">
+                <Grid Margin="22,18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Modules" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="The same modules as the numbered menu. These open in their own PowerShell window on purpose: they ask questions, print a lot, and some of them take minutes -- none of which belongs in a window that should stay responsive. Read-only ones are marked; the rest change real state."/>
+                    </StackPanel>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="ModuleList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Activity ============================ -->
+            <TabItem Header="Activity">
+                <Grid Margin="22,18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Activity" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="Everything this window has done, in order. The same lines go to this session's transcript under logs\, which is what the incident report generator reads when it looks for evidence."/>
+                    </StackPanel>
+                    <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                             FontFamily="Consolas" FontSize="12.5" Background="#16161B"/>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="3" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="18,7">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="StatusText" Grid.Column="0" Text="Ready" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center"/>
+                <ProgressBar x:Name="BusyBar" Grid.Column="1" Width="180" Height="5" IsIndeterminate="True" Visibility="Hidden"
+                             Background="Transparent" BorderThickness="0" Foreground="{StaticResource Accent}"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

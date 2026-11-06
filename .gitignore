@@ -1,0 +1,40 @@
+# Local, competition-specific data -- never commit this.
+# The whole point of the toolkit is that the repo stays generic/public
+# and everything environment-specific lives only on the machine you run it from.
+config/answers.local.psd1
+logs/
+*.local.psd1
+*.zip
+
+# Pre-staged third-party binaries (Sysmon, Splunk UF, ...) -- large, and
+# not something to redistribute through this repo regardless of size;
+# download them yourself per docs/PREP-SHEET.md and stage them here.
+# Our own prep-time helper scripts live in prep/, not here, precisely so
+# they don't disappear into this rule.
+tools/
+
+# Past injects, team packets and other competition paperwork. Useful to
+# read and to practise against, not ours to republish -- and a public repo
+# is the wrong place for it regardless. Keep it local; your coach decides
+# if any of it gets shared.
+injects-archive/
+
+# Raw Discord export, same reasoning as injects-archive/ above -- useful
+# to mine for ground truth, not ours to republish, and almost certainly
+# contains other people's messages. Keep it local.
+discord-archive/
+
+# The practice lab. This is OUR test environment -- Hyper-V VM building,
+# unattended-install answer files, ISO staging, VM screenshots, unsticking
+# wedged VMs. NONE of it ever runs on a competition box, and none of it is
+# part of what the toolkit does on game day. It also describes the shape of
+# our own practice setup, which is nobody else's business. Keep it local.
+lab/
+
+# These test the lab kit and import from lab\, so they cannot live in a
+# repo that does not ship lab\ -- a fresh clone would fail to even load
+# them. The toolkit's own tests (modules, logic, UI, repo policy) stay.
+tests/Lab.Tests.ps1
+tests/LabHost.Tests.ps1
+tests/LabGuest.Tests.ps1
+.aider*

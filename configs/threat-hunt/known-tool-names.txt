@@ -1,0 +1,35 @@
+# Process names (lowercase, no .exe) that Invoke-ThreatHunt.ps1 flags EVERY pass
+# if they are seen running, regardless of what path they run from.
+#
+# One name per line. Blank lines and lines starting with # are ignored. Add or
+# remove names freely -- no script needs to be edited. Not exhaustive: a first
+# pass at common offensive-security tooling, plus a few dual-use tools that are
+# worth a second look when nobody on the team started them.
+#
+# Why this is a data file and not a list inside the script: antivirus
+# (Windows Defender's AMSI scan of PowerShell) reacts to well-known offensive
+# tool names appearing in script SOURCE, and this repo's defensive script was
+# blocked as "malicious content" on one first run because its own IOC list
+# looked like the real thing. Keeping the names here keeps the script itself
+# clean. See docs/ARCHITECTURE.md ("Antivirus and the tool-name list").
+#
+# Override for one run with: Invoke-ThreatHunt.ps1 -KnownToolNamesPath <file>
+# or -KnownToolNames name1,name2
+
+mimikatz
+invoke-mimikatz
+rubeus
+seatbelt
+winpeas
+linpeas
+sharphound
+bloodhound
+powersploit
+powercat
+meterpreter
+procdump
+psexec
+psexec64
+nc
+ncat
+netcat

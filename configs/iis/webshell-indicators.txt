@@ -1,0 +1,61 @@
+# Strings that Invoke-IISHardening.ps1 looks for inside executable files under a
+# web root. A match does NOT mean a file is malicious -- most of these are things
+# real applications legitimately do. It means "a human should read this file".
+#
+# One indicator per line. Blank lines and lines starting with # are ignored.
+# Matching is case-insensitive and plain-text (not regex), so nothing here needs
+# escaping.
+#
+# Why this is a data file and not a list inside the script: antivirus (Windows
+# Defender's AMSI scan of PowerShell) reacts to attack-shaped strings appearing
+# in script SOURCE, and this repo has already had a defensive script blocked as
+# "malicious content" for exactly that reason. See docs/SECURITY.md.
+#
+# Add your own as you learn what your environment actually looks like; remove
+# any that match a legitimate application of yours and just create noise.
+
+# --- running operating-system commands from a web page ---
+cmd.exe /c
+cmd /c
+WScript.Shell
+Shell.Application
+System.Diagnostics.Process
+ProcessStartInfo
+popen(
+proc_open(
+shell_exec(
+passthru(
+system(
+
+# --- running code supplied in the request ---
+eval(
+assert(
+ExecuteGlobal
+Execute Request
+Request.Item
+Request.Form
+Request.QueryString
+__REQUEST
+
+# --- hiding what the code actually is ---
+FromBase64String
+base64_decode
+gzinflate(
+str_rot13(
+Convert.FromBase64
+
+# --- reaching the file system or the network from a page that should not ---
+System.IO.File.WriteAllBytes
+Scripting.FileSystemObject
+ADODB.Stream
+Net.WebClient
+DownloadString
+DownloadFile
+Invoke-WebRequest
+bitsadmin
+certutil -urlcache
+
+# --- ASP.NET pages that compile code at runtime ---
+System.Reflection.Assembly.Load
+CompileAssemblyFromSource
+Microsoft.JScript
