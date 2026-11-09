@@ -237,56 +237,15 @@ if ((Test-CcdcAdModuleAvailable) -and (Test-CcdcGpoModuleAvailable)) {
         $artifactPrefix = Get-CcdcAnswer -Key 'ArtifactPrefix' -Prompt 'Prefix for named artifacts (anything -- just avoid an obvious "CCDC" string since this repo is public)' -Default 'Baseline'
         $GpoName = "$artifactPrefix-Hardening-Policy"
     }
+    $linkTarget = if ($TargetOU) { $TargetOU } else { (Get-ADDomain -ErrorAction SilentlyContinue).DistinguishedName }
 
-    # Table-driven: each entry is one registry-backed policy value. Kept
-    # as data rather than one-off Set-GPRegistryValue calls so it's easy
-    # to see the whole policy at a glance and extend later.
-    $policyValues = @(
-        [pscustomobject]@{ Key = 'HKLM\Software\Policies\Microsoft\Windows NT\DNSClient'; Name = 'EnableMulticast'; Type = 'DWord'; Value = 0; Description = 'Disable LLMNR' }
-        [pscustomobject]@{ Key = 'HKLM\System\CurrentControlSet\Control\Lsa'; Name = 'RestrictAnonymous'; Type = 'DWord'; Value = 1; Description = 'Disable anonymous SMB enumeration' }
-        [pscustomobject]@{ Key = 'HKLM\System\CurrentControlSet\Control\Lsa'; Name = 'RestrictAnonymousSAM'; Type = 'DWord'; Value = 1; Description = 'Disable anonymous SAM enumeration' }
-        [pscustomobject]@{ Key = 'HKLM\System\CurrentControlSet\Control\Lsa'; Name = 'LmCompatibilityLevel'; Type = 'DWord'; Value = 5; Description = 'NTLMv2 only (refuse LM/NTLM)' }
-        [pscustomobject]@{ Key = 'HKLM\System\CurrentControlSet\Services\LanmanWorkstation\Parameters'; Name = 'RequireSecuritySignature'; Type = 'DWord'; Value = 1; Description = 'Require SMB signing (client)' }
-        [pscustomobject]@{ Key = 'HKLM\System\CurrentControlSet\Services\LanmanServer\Parameters'; Name = 'RequireSecuritySignature'; Type = 'DWord'; Value = 1; Description = 'Require SMB signing (server)' }
-    )
-
+    # The policy values and the actual New-GPO/Set-GPRegistryValue/New-GPLink
+    # work live in New-CcdcHardeningGpo (modules\Common.psm1) now -- the ONE
+    # place both this module and the admin console's UI create the hardening
+    # GPO, so they cannot quietly disagree about what it contains. Edit the
+    # policy table there, not here.
     if ($PSCmdlet.ShouldProcess($GpoName, 'Create/update hardening GPO and link it')) {
-        $existingGpo = Get-GPO -Name $GpoName -ErrorAction SilentlyContinue
-        if (-not $existingGpo) {
-            $gpoOutcome = Invoke-CcdcSafe -Target $GpoName -Action 'create hardening GPO' -ScriptBlock {
-                New-GPO -Name $GpoName -ErrorAction Stop
-            }
-        } else {
-            Write-CcdcLog -Level INFO -Message "'$GpoName' already exists -- updating its registry values rather than creating a duplicate."
-            $gpoOutcome = [pscustomobject]@{ Success = $true }
-        }
-
-        if ($gpoOutcome.Success) {
-            $anyFailed = $false
-            foreach ($pv in $policyValues) {
-                $setOutcome = Invoke-CcdcSafe -Target "$($pv.Key)\$($pv.Name)" -Action "set GPO value: $($pv.Description)" -ScriptBlock {
-                    Set-GPRegistryValue -Name $GpoName -Key $pv.Key -ValueName $pv.Name -Type $pv.Type -Value $pv.Value -ErrorAction Stop
-                }
-                if (-not $setOutcome.Success) { $anyFailed = $true }
-            }
-            if (-not $anyFailed) {
-                Write-CcdcLog -Level OK -Message "All $($policyValues.Count) policy value(s) set on '$GpoName'."
-            }
-
-            $linkTarget = if ($TargetOU) { $TargetOU } else { (Get-ADDomain -ErrorAction SilentlyContinue).DistinguishedName }
-            if ($linkTarget) {
-                $linkOutcome = Invoke-CcdcSafe -Target $linkTarget -Action "link '$GpoName'" -ScriptBlock {
-                    if (-not (Get-GPInheritance -Target $linkTarget -ErrorAction SilentlyContinue | Select-Object -ExpandProperty GpoLinks | Where-Object { $_.DisplayName -eq $GpoName })) {
-                        New-GPLink -Name $GpoName -Target $linkTarget -ErrorAction Stop | Out-Null
-                    }
-                }
-                if ($linkOutcome.Success) {
-                    Write-CcdcLog -Level OK -Message "'$GpoName' linked to $linkTarget. Changes apply on the next Group Policy refresh (gpupdate /force on a host, or wait for the normal refresh interval)."
-                }
-            } else {
-                Write-CcdcLog -Level WARN -Message "Couldn't resolve a link target -- the GPO was created/updated but is NOT linked anywhere yet. Link it by hand (or pass -TargetOU) once you've confirmed where."
-            }
-        }
+        New-CcdcHardeningGpo -GpoName $GpoName -TargetOU $linkTarget | Out-Null
     }
 }
 

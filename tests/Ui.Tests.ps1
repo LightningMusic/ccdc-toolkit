@@ -245,6 +245,29 @@ Describe 'the background work scripts' {
         $branch | Should Match 'Get-CcdcDnsRecordDataText'
         $branch | Should Match 'Where-Object'
     }
+    It 'back up before they add or remove a DHCP reservation -- in both branches' {
+        foreach ($case in 'Add', 'Remove') {
+            $branch = Get-UiSwitchCaseText -VariableName 'WorkDhcpReservationAction' -CaseLabel $case
+            "$case : $(if ($branch) { 'found' } else { 'MISSING' })" | Should Be "$case : found"
+            $branch | Should Match 'Backup-CcdcState'
+        }
+    }
+    It 'back up before a GPO link changes -- Link and Unlink, each on its own' {
+        foreach ($case in 'Link', 'Unlink') {
+            $branch = Get-UiSwitchCaseText -VariableName 'WorkGpoLinkAction' -CaseLabel $case
+            "$case : $(if ($branch) { 'found' } else { 'MISSING' })" | Should Be "$case : found"
+            $branch | Should Match 'Backup-CcdcState'
+        }
+    }
+    It 'creating the hardening GPO calls the SAME shared function Invoke-ADHardening.ps1 uses, so the window and that module cannot quietly disagree about what the GPO contains' {
+        $text = Get-UiStringVariable -Name 'WorkGpoCreate'
+        $text | Should Match 'New-CcdcHardeningGpo'
+        # Real code only, not an explanatory comment that happens to NAME the
+        # cmdlets it deliberately avoids calling -- strip comment lines first.
+        $code = ($text -split "`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+        $code | Should Not Match 'New-GPO\b'
+        $code | Should Not Match 'Set-GPRegistryValue'
+    }
     It 'back up before every scheduled-task change -- Enable, Disable and Delete, each on its own' {
         foreach ($case in 'Enable', 'Disable', 'Delete') {
             $branch = Get-UiSwitchCaseText -VariableName 'WorkTaskAction' -CaseLabel $case

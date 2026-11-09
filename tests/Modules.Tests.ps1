@@ -252,4 +252,14 @@ Describe 'Invoke-AD*: degrades cleanly without RSAT' {
         $run.Completed | Should Be $true
         (Test-HarnessLog $run 'TARGET CHECK') | Should Be $true
     }
+    It 'creates the hardening GPO through New-CcdcHardeningGpo, not its own inline New-GPO/Set-GPRegistryValue calls -- the one place this module and the admin console UI can agree on what it contains' {
+        $text = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'modules\Invoke-ADHardening.ps1') -Raw
+        $text | Should Match 'New-CcdcHardeningGpo'
+        # Real code only, not a comment explaining the move -- which
+        # legitimately NAMES the cmdlets this module deliberately no longer
+        # calls directly.
+        $code = ($text -split "`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+        $code | Should Not Match 'New-GPO\s'
+        $code | Should Not Match 'Set-GPRegistryValue'
+    }
 }

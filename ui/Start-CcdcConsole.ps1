@@ -10,7 +10,7 @@
 
         .\ui\Start-CcdcConsole.ps1
 
-    Eight tabs:
+    Ten tabs:
       Dashboard  Read-only. Firewall default action, Sysmon and the Splunk
                  forwarder, failed logons, listening ports, privileged group
                  sizes, inventory age -- each with what it means and what to do.
@@ -22,6 +22,15 @@
       DNS        Zones, records, and the same zone-transfer / dynamic-update /
                  cache hardening Invoke-DnsHardening.ps1 does -- only useful
                  on the box running the DnsServer role.
+      DHCP       Scopes and reservations -- only useful on the box running
+                 the DhcpServer role (the same machine as DNS/AD at the real
+                 site). A rogue reservation is exactly what the threat hunt
+                 also watches for pass-to-pass.
+      Group      List every GPO and what it's linked to, link/unlink one,
+      Policy     and create the toolkit's hardening GPO (LLMNR off, anonymous
+                 SMB/SAM enumeration off, NTLMv2 only, SMB signing required)
+                 through the exact same shared function Invoke-ADHardening.ps1
+                 uses -- the window and that module can't quietly disagree.
       Services   List, filter, start, stop, restart, change startup type.
       Tasks      List, filter, enable, disable, delete, create a scheduled
                  task. Flags one whose action runs from an unusual path, the
@@ -121,6 +130,12 @@ $script:ControlNames = @(
     'DnsRecordName', 'DnsRecordTypeCombo', 'DnsRecordValue', 'DnsRecordTtl',
     'DnsAddRecordButton', 'DnsRemoveRecordButton',
     'DnsSecureTransfersButton', 'DnsSecureUpdatesButton', 'DnsHardenCacheButton',
+    'DhcpListScopesButton', 'DhcpScopeGrid', 'DhcpListReservationsButton', 'DhcpReservationGrid',
+    'DhcpResIp', 'DhcpResClientId', 'DhcpResName', 'DhcpResDescription',
+    'DhcpAddReservationButton', 'DhcpRemoveReservationButton',
+    'GpoListButton', 'GpoGrid', 'GpoListLinksButton', 'GpoLinkGrid',
+    'GpoLinkTarget', 'GpoLinkButton', 'GpoUnlinkButton',
+    'GpoCreateName', 'GpoCreateTarget', 'GpoCreateButton',
     'ServiceFilterBox', 'ServiceSearchButton', 'ServiceGrid',
     'TaskFilterBox', 'TaskSearchButton', 'TaskGrid',
     'TaskDisableButton', 'TaskEnableButton', 'TaskDeleteButton',
@@ -699,6 +714,154 @@ switch ($Arg.Action) {
 @{ Log = $log.ToArray(); Data = $null }
 '@
 
+$script:WorkDhcp = @'
+param($RepoRoot, $Arg)
+Import-Module (Join-Path $RepoRoot 'modules\Common.psm1') -Force
+$log = New-Object System.Collections.Generic.List[object]
+$rows = New-Object System.Collections.Generic.List[object]
+
+if (-not (Get-Command -Name Get-DhcpServerv4Scope -ErrorAction SilentlyContinue)) {
+    # INFO, not ERROR: every box except the DHCP server legitimately has no
+    # DhcpServer module, same as the DNS tab correctly declining elsewhere.
+    $log.Add(@{ Level='INFO'; Message="The DhcpServer module isn't available here. Run this on the DHCP server." })
+    return @{ Log = $log.ToArray(); Data = $rows.ToArray() }
+}
+
+if ($Arg.Query -eq 'Scopes') {
+    foreach ($s in (Get-DhcpServerv4Scope -ErrorAction Stop)) {
+        $rows.Add([pscustomobject]@{
+            ScopeId = "$($s.ScopeId)"; Name = "$($s.Name)"; State = "$($s.State)"
+            Range = "$($s.StartRange) - $($s.EndRange)"; SubnetMask = "$($s.SubnetMask)"
+            LeaseDuration = "$($s.LeaseDuration)"
+        })
+    }
+} else {
+    $scopeId = "$($Arg.ScopeId)"
+    if (-not $scopeId) {
+        $log.Add(@{ Level='WARN'; Message='Pick a scope in the list first.' })
+        return @{ Log = $log.ToArray(); Data = $rows.ToArray() }
+    }
+    foreach ($r in (Get-DhcpServerv4Reservation -ScopeId $scopeId -ErrorAction Stop)) {
+        $rows.Add([pscustomobject]@{
+            IPAddress = "$($r.IPAddress)"; ClientId = "$($r.ClientId)"; Name = "$($r.Name)"
+            Description = "$($r.Description)"; Type = "$($r.Type)"
+        })
+    }
+}
+@{ Log = $log.ToArray(); Data = $rows.ToArray() }
+'@
+
+$script:WorkDhcpReservationAction = @'
+param($RepoRoot, $Arg)
+Import-Module (Join-Path $RepoRoot 'modules\Common.psm1') -Force
+$session = Start-CcdcSession -RootPath $RepoRoot
+$log = New-Object System.Collections.Generic.List[object]
+$scopeId = "$($Arg.ScopeId)"
+$ip = "$($Arg.IPAddress)"
+
+switch ($Arg.Action) {
+    'Add' {
+        Backup-CcdcState -Name "ui-DhcpScope-$scopeId" -Data (Get-DhcpServerv4Reservation -ScopeId $scopeId -ErrorAction SilentlyContinue) | Out-Null
+        $params = @{ ScopeId = $scopeId; IPAddress = $ip; ClientId = "$($Arg.ClientId)"; ErrorAction = 'Stop' }
+        if ("$($Arg.Name)") { $params.Name = "$($Arg.Name)" }
+        if ("$($Arg.Description)") { $params.Description = "$($Arg.Description)" }
+        Add-DhcpServerv4Reservation @params
+        $log.Add(@{ Level='OK'; Message="Reserved $ip for client $($Arg.ClientId) in scope $scopeId." })
+    }
+    'Remove' {
+        Backup-CcdcState -Name "ui-DhcpReservation-$ip" -Data (Get-DhcpServerv4Reservation -ScopeId $scopeId -ErrorAction SilentlyContinue | Where-Object { "$($_.IPAddress)" -eq $ip }) | Out-Null
+        Remove-DhcpServerv4Reservation -IPAddress $ip -ErrorAction Stop
+        $log.Add(@{ Level='OK'; Message="Removed the reservation for $ip." })
+    }
+}
+@{ Log = $log.ToArray(); Data = $null }
+'@
+
+$script:WorkGpo = @'
+param($RepoRoot, $Arg)
+Import-Module (Join-Path $RepoRoot 'modules\Common.psm1') -Force
+$log = New-Object System.Collections.Generic.List[object]
+$rows = New-Object System.Collections.Generic.List[object]
+
+if (-not (Get-Command -Name Get-GPO -ErrorAction SilentlyContinue)) {
+    $log.Add(@{ Level='INFO'; Message="The GroupPolicy module isn't available here. Run this from a domain-joined host with RSAT (ideally a domain controller)." })
+    return @{ Log = $log.ToArray(); Data = $rows.ToArray() }
+}
+
+if ($Arg.Query -eq 'Gpos') {
+    foreach ($g in (Get-GPO -All -ErrorAction Stop)) {
+        $rows.Add([pscustomobject]@{
+            DisplayName = "$($g.DisplayName)"; Id = "$($g.Id)"; GpoStatus = "$($g.GpoStatus)"
+            Owner = "$($g.Owner)"; CreationTime = "$($g.CreationTime)"
+        })
+    }
+} else {
+    $gpoName = "$($Arg.GpoName)"
+    if (-not $gpoName) {
+        $log.Add(@{ Level='WARN'; Message='Pick a GPO in the list first.' })
+        return @{ Log = $log.ToArray(); Data = $rows.ToArray() }
+    }
+    # No single cmdlet returns "every place this GPO is linked" -- GpInheritance
+    # is scoped to an OU/domain, not a GPO, so every OU plus the domain root
+    # has to be checked. Fine at a small practice-lab domain's OU count; if
+    # this ever needs to scale to a large real-world domain, narrow it with
+    # -SearchBase first.
+    $targets = New-Object System.Collections.Generic.List[string]
+    $domain = Get-ADDomain -ErrorAction SilentlyContinue
+    if ($domain) { $targets.Add($domain.DistinguishedName) }
+    foreach ($ou in (Get-ADOrganizationalUnit -Filter * -ErrorAction SilentlyContinue)) { $targets.Add("$($ou.DistinguishedName)") }
+    foreach ($t in $targets) {
+        $links = @(Get-GPInheritance -Target $t -ErrorAction SilentlyContinue | Select-Object -ExpandProperty GpoLinks | Where-Object { $_.DisplayName -eq $gpoName })
+        foreach ($l in $links) {
+            $rows.Add([pscustomobject]@{ Target = $t; Enabled = "$($l.Enabled)"; Enforced = "$($l.Enforced)" })
+        }
+    }
+}
+@{ Log = $log.ToArray(); Data = $rows.ToArray() }
+'@
+
+$script:WorkGpoLinkAction = @'
+param($RepoRoot, $Arg)
+Import-Module (Join-Path $RepoRoot 'modules\Common.psm1') -Force
+$session = Start-CcdcSession -RootPath $RepoRoot
+$log = New-Object System.Collections.Generic.List[object]
+$gpoName = "$($Arg.GpoName)"
+$target = "$($Arg.Target)"
+
+switch ($Arg.Action) {
+    'Link' {
+        Backup-CcdcState -Name "ui-GpoLinks-$target" -Data (Get-GPInheritance -Target $target -ErrorAction SilentlyContinue) | Out-Null
+        New-GPLink -Name $gpoName -Target $target -ErrorAction Stop | Out-Null
+        $log.Add(@{ Level='OK'; Message="Linked '$gpoName' to $target." })
+    }
+    'Unlink' {
+        Backup-CcdcState -Name "ui-GpoLinks-$target" -Data (Get-GPInheritance -Target $target -ErrorAction SilentlyContinue) | Out-Null
+        Remove-GPLink -Name $gpoName -Target $target -ErrorAction Stop
+        $log.Add(@{ Level='OK'; Message="Unlinked '$gpoName' from $target." })
+    }
+}
+@{ Log = $log.ToArray(); Data = $null }
+'@
+
+$script:WorkGpoCreate = @'
+param($RepoRoot, $Arg)
+Import-Module (Join-Path $RepoRoot 'modules\Common.psm1') -Force
+$session = Start-CcdcSession -RootPath $RepoRoot
+$log = New-Object System.Collections.Generic.List[object]
+
+# New-CcdcHardeningGpo is the ONE place the policy values and the real
+# New-GPO/Set-GPRegistryValue/New-GPLink calls live -- Invoke-ADHardening.ps1
+# calls the exact same function, so this button and that module cannot
+# quietly disagree about what the hardening GPO contains.
+$result = New-CcdcHardeningGpo -GpoName "$($Arg.GpoName)" -TargetOU "$($Arg.TargetOU)"
+if ($result.Success) {
+    $log.Add(@{ Level='OK'; Message=$result.Message })
+} else {
+    $log.Add(@{ Level='ERROR'; Message=$result.Message })
+}
+@{ Log = $log.ToArray(); Data = $null }
+'@
+
 $script:WorkTasks = @'
 param($RepoRoot, $Arg)
 Import-Module (Join-Path $RepoRoot 'modules\Common.psm1') -Force
@@ -1028,6 +1191,109 @@ function Invoke-DnsHardenAction {
 }
 
 # ---------------------------------------------------------------------------
+# DHCP
+# ---------------------------------------------------------------------------
+function Update-DhcpScopes {
+    Start-UiWork -Status 'Listing DHCP scopes...' -ScriptText $script:WorkDhcp -Arguments @{ Query = 'Scopes' } -OnDone {
+        param($result)
+        $rows = @($result.Data)
+        $ui.DhcpScopeGrid.ItemsSource = $rows
+        Write-UiLog -Level INFO -Message "$($rows.Count) scope(s) listed."
+    }
+}
+
+function Get-SelectedScope {
+    $row = $ui.DhcpScopeGrid.SelectedItem
+    if (-not $row) { Write-UiLog -Level WARN -Message 'Pick a scope in the list first.'; return $null }
+    return "$($row.ScopeId)"
+}
+
+function Update-DhcpReservations {
+    $scope = Get-SelectedScope; if (-not $scope) { return }
+    Start-UiWork -Status "Listing reservations in $scope..." -ScriptText $script:WorkDhcp -Arguments @{ Query = 'Reservations'; ScopeId = $scope } -OnDone {
+        param($result)
+        $rows = @($result.Data)
+        $ui.DhcpReservationGrid.ItemsSource = $rows
+        Write-UiLog -Level INFO -Message "$($rows.Count) reservation(s) listed for $scope."
+    }
+}
+
+function Get-SelectedReservation {
+    $row = $ui.DhcpReservationGrid.SelectedItem
+    if (-not $row) { Write-UiLog -Level WARN -Message 'Pick a reservation in the list first.'; return $null }
+    return $row
+}
+
+function Invoke-DhcpReservationAction {
+    param([string]$Action, [string]$IPAddress, [string]$ClientId, [string]$Name, [string]$Description, [string]$Confirm)
+    $scope = Get-SelectedScope; if (-not $scope) { return }
+    if ($Confirm -and -not (Confirm-UiAction -Message $Confirm)) { Write-UiLog -Level INFO -Message 'Cancelled.'; return }
+    Write-UiLog -Level ACTION -Message "$Action reservation $IPAddress in scope $scope."
+    Start-UiWork -Status "$Action reservation..." -ScriptText $script:WorkDhcpReservationAction `
+        -Arguments @{ Action = $Action; ScopeId = $scope; IPAddress = $IPAddress; ClientId = $ClientId; Name = $Name; Description = $Description } -OnDone {
+        param($result)
+        Update-DhcpReservations
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Group Policy
+# ---------------------------------------------------------------------------
+function Update-GpoList {
+    Start-UiWork -Status 'Listing GPOs...' -ScriptText $script:WorkGpo -Arguments @{ Query = 'Gpos' } -OnDone {
+        param($result)
+        $rows = @($result.Data)
+        $ui.GpoGrid.ItemsSource = $rows
+        Write-UiLog -Level INFO -Message "$($rows.Count) GPO(s) listed."
+    }
+}
+
+function Get-SelectedGpo {
+    $row = $ui.GpoGrid.SelectedItem
+    if (-not $row) { Write-UiLog -Level WARN -Message 'Pick a GPO in the list first.'; return $null }
+    return "$($row.DisplayName)"
+}
+
+function Update-GpoLinks {
+    $gpo = Get-SelectedGpo; if (-not $gpo) { return }
+    Start-UiWork -Status "Listing links for $gpo..." -ScriptText $script:WorkGpo -Arguments @{ Query = 'Links'; GpoName = $gpo } -OnDone {
+        param($result)
+        $rows = @($result.Data)
+        $ui.GpoLinkGrid.ItemsSource = $rows
+        Write-UiLog -Level INFO -Message "$($rows.Count) link(s) listed for $gpo."
+    }
+}
+
+function Get-SelectedGpoLink {
+    $row = $ui.GpoLinkGrid.SelectedItem
+    if (-not $row) { Write-UiLog -Level WARN -Message 'Pick a link in the list first.'; return $null }
+    return $row
+}
+
+function Invoke-GpoLinkAction {
+    param([string]$Action, [string]$Target, [string]$Confirm)
+    $gpo = Get-SelectedGpo; if (-not $gpo) { return }
+    if (-not $Target) { Write-UiLog -Level WARN -Message 'Type a target distinguished name first.'; return }
+    if ($Confirm -and -not (Confirm-UiAction -Message $Confirm)) { Write-UiLog -Level INFO -Message 'Cancelled.'; return }
+    Write-UiLog -Level ACTION -Message "$Action '$gpo' to $Target."
+    Start-UiWork -Status "$Action..." -ScriptText $script:WorkGpoLinkAction -Arguments @{ Action = $Action; GpoName = $gpo; Target = $Target } -OnDone {
+        param($result)
+        Update-GpoLinks
+    }
+}
+
+function Invoke-GpoCreate {
+    param([string]$GpoName, [string]$TargetOU, [string]$Confirm)
+    if (-not $GpoName) { Write-UiLog -Level WARN -Message 'Type a GPO name first.'; return }
+    if (-not (Confirm-UiAction -Message $Confirm)) { Write-UiLog -Level INFO -Message 'Cancelled.'; return }
+    Write-UiLog -Level ACTION -Message "Create/update hardening GPO '$GpoName'."
+    Start-UiWork -Status 'Creating hardening GPO...' -ScriptText $script:WorkGpoCreate -Arguments @{ GpoName = $GpoName; TargetOU = $TargetOU } -OnDone {
+        param($result)
+        Update-GpoList
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Scheduled Tasks
 # ---------------------------------------------------------------------------
 foreach ($t in 'At logon', 'At startup', 'Daily 3am') { [void]$ui.TaskNewTrigger.Items.Add($t) }
@@ -1183,7 +1449,7 @@ $script:Modules = @(
     @{ Name = 'Close known-exploit gaps'; Script = 'Invoke-ExploitAudit.ps1'; Args = @('-Fix')
        Desc = 'Applies only the mitigations marked safe, each backed up first. Run the audit and read the risks before this.' }
     @{ Name = 'Admin console'; Script = 'Invoke-AdminConsole.ps1'
-       Desc = 'The full text menu for anything this window does not cover -- DNS, permissions, GPO, scheduled tasks.' }
+       Desc = 'The full text menu for anything this window does not cover yet -- file/folder permissions is the main gap left.' }
     @{ Name = 'Write an incident report'; Script = 'New-IncidentReport.ps1'
        Desc = 'Every field the packet requires, plus the evidence this toolkit already logged. Writes a memo ready to print to PDF.' }
     @{ Name = 'Packet capture'; Script = 'Invoke-PacketCapture.ps1'
@@ -1304,6 +1570,36 @@ Register-UiClick -Button $ui.DnsSecureUpdatesButton -Action {
 }
 Register-UiClick -Button $ui.DnsHardenCacheButton -Action {
     Invoke-DnsHardenAction -Action 'HardenCache' -Confirm "Harden the DNS cache server-wide (locking 100%, pollution protection on)?`n`nThis affects every zone this server answers for, not just one."
+}
+
+Register-UiClick -Button $ui.DhcpListScopesButton -Action { Update-DhcpScopes }
+Register-UiClick -Button $ui.DhcpListReservationsButton -Action { Update-DhcpReservations }
+Register-UiClick -Button $ui.DhcpAddReservationButton -Action {
+    $ip = $ui.DhcpResIp.Text.Trim()
+    if (-not $ip) { Write-UiLog -Level WARN -Message 'Type an IP address first.'; return }
+    $mac = $ui.DhcpResClientId.Text.Trim()
+    if (-not $mac) { Write-UiLog -Level WARN -Message 'Type a client MAC address first.'; return }
+    Invoke-DhcpReservationAction -Action 'Add' -IPAddress $ip -ClientId $mac -Name $ui.DhcpResName.Text.Trim() -Description $ui.DhcpResDescription.Text.Trim() `
+        -Confirm "Reserve $ip for client $mac in the selected scope?"
+}
+Register-UiClick -Button $ui.DhcpRemoveReservationButton -Action {
+    $row = Get-SelectedReservation; if (-not $row) { return }
+    Invoke-DhcpReservationAction -Action 'Remove' -IPAddress "$($row.IPAddress)" `
+        -Confirm "Remove the reservation for $($row.IPAddress) (client $($row.ClientId))?`n`nThat IP becomes available for any client to lease again."
+}
+
+Register-UiClick -Button $ui.GpoListButton -Action { Update-GpoList }
+Register-UiClick -Button $ui.GpoListLinksButton -Action { Update-GpoLinks }
+Register-UiClick -Button $ui.GpoLinkButton -Action {
+    Invoke-GpoLinkAction -Action 'Link' -Target $ui.GpoLinkTarget.Text.Trim() -Confirm "Link the selected GPO to '$($ui.GpoLinkTarget.Text.Trim())'?`n`nIts settings apply there on the next Group Policy refresh."
+}
+Register-UiClick -Button $ui.GpoUnlinkButton -Action {
+    $row = Get-SelectedGpoLink; if (-not $row) { return }
+    Invoke-GpoLinkAction -Action 'Unlink' -Target "$($row.Target)" -Confirm "Unlink the selected GPO from $($row.Target)?`n`nIts settings stop applying there on the next refresh."
+}
+Register-UiClick -Button $ui.GpoCreateButton -Action {
+    Invoke-GpoCreate -GpoName $ui.GpoCreateName.Text.Trim() -TargetOU $ui.GpoCreateTarget.Text.Trim() `
+        -Confirm "Create/update the hardening GPO '$($ui.GpoCreateName.Text.Trim())' and link it to '$($ui.GpoCreateTarget.Text.Trim())'?`n`nThis sets registry policy (LLMNR off, anonymous SMB/SAM enumeration off, NTLMv2 only, SMB signing required) that applies to everything under that target on the next refresh."
 }
 
 Register-UiClick -Button $ui.TaskSearchButton -Action { Update-Tasks }
@@ -1455,6 +1751,17 @@ if ($SelfTest) {
     Update-DnsZones
     Wait-UiWork
     Write-Host "DNS zones shown: $(@($ui.DnsZoneGrid.ItemsSource).Count) (0 is normal off the DNS server)"
+
+    # DHCP and Group Policy too -- same reasoning: a box with no DhcpServer
+    # or GroupPolicy module (every box except the DC, including this one)
+    # legitimately lists zero rows, and WorkDhcp/WorkGpo report that as INFO.
+    Update-DhcpScopes
+    Wait-UiWork
+    Write-Host "DHCP scopes shown: $(@($ui.DhcpScopeGrid.ItemsSource).Count) (0 is normal off the DHCP server)"
+
+    Update-GpoList
+    Wait-UiWork
+    Write-Host "GPOs shown: $(@($ui.GpoGrid.ItemsSource).Count) (0 is normal off a domain-joined host with RSAT)"
 
     # Tasks and Firewall too -- these were shipped with their controls
     # proven present and wired, but Get-ScheduledTask and Get-NetFirewallRule

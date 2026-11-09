@@ -383,6 +383,124 @@
                 </Grid>
             </TabItem>
 
+            <!-- ============================ DHCP ============================ -->
+            <TabItem Header="DHCP">
+                <Grid Margin="22,18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="170"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="DHCP" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="Scopes and reservations on the box running the DHCP role -- a rogue reservation pinning a trusted hostname to a hostile IP is exactly what the toolkit's threat hunt also watches for between passes. Pick a scope below, then list its reservations."/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="DhcpListScopesButton" Content="List scopes" Style="{StaticResource Primary}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="DhcpScopeGrid" Grid.Row="2" Margin="0,0,0,10">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Scope ID" Binding="{Binding ScopeId}" Width="140"/>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="160"/>
+                            <DataGridTextColumn Header="State" Binding="{Binding State}" Width="90"/>
+                            <DataGridTextColumn Header="Range" Binding="{Binding Range}" Width="220"/>
+                            <DataGridTextColumn Header="Subnet mask" Binding="{Binding SubnetMask}" Width="140"/>
+                            <DataGridTextColumn Header="Lease duration" Binding="{Binding LeaseDuration}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="DhcpListReservationsButton" Content="List reservations in selected scope" Style="{StaticResource Primary}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="DhcpReservationGrid" Grid.Row="4">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="IP address" Binding="{Binding IPAddress}" Width="150"/>
+                            <DataGridTextColumn Header="Client ID (MAC)" Binding="{Binding ClientId}" Width="170"/>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="190"/>
+                            <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="5" Margin="0,13,0,0">
+                        <TextBlock Text="Add a reservation to the selected scope" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="DhcpResIp" Width="140" Margin="0,0,8,0" ToolTip="IP address to reserve, e.g. 172.20.240.50"/>
+                            <TextBox x:Name="DhcpResClientId" Width="160" Margin="0,0,8,0" ToolTip="Client MAC address, e.g. 00-11-22-33-44-55"/>
+                            <TextBox x:Name="DhcpResName" Width="160" Margin="0,0,8,0" ToolTip="Friendly name (optional)"/>
+                            <TextBox x:Name="DhcpResDescription" Width="190" Margin="0,0,8,0" ToolTip="Description (optional)"/>
+                            <Button x:Name="DhcpAddReservationButton" Content="Add reservation" Style="{StaticResource Primary}"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock Text="With the selected reservation:" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button x:Name="DhcpRemoveReservationButton" Content="Remove reservation" Style="{StaticResource Danger}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Group Policy ============================ -->
+            <TabItem Header="Group Policy">
+                <Grid Margin="22,18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="150"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Group Policy" Style="{StaticResource H1}"/>
+                        <TextBlock Style="{StaticResource Sub}" Text="Every GPO in the domain, what it's linked to, and the toolkit's own hardening GPO (LLMNR, anonymous SMB/SAM enumeration, NTLMv2, SMB signing) -- this tab creates it through the exact same shared function Invoke-ADHardening.ps1 uses, so the two can never quietly disagree. Pick a GPO below, then list what it's linked to."/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="GpoListButton" Content="List GPOs" Style="{StaticResource Primary}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="GpoGrid" Grid.Row="2" Margin="0,0,0,10">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="220"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding GpoStatus}" Width="150"/>
+                            <DataGridTextColumn Header="Owner" Binding="{Binding Owner}" Width="180"/>
+                            <DataGridTextColumn Header="Created" Binding="{Binding CreationTime}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="GpoListLinksButton" Content="List links for selected GPO" Style="{StaticResource Primary}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="GpoLinkGrid" Grid.Row="4">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Linked to" Binding="{Binding Target}" Width="*"/>
+                            <DataGridTextColumn Header="Enabled" Binding="{Binding Enabled}" Width="90"/>
+                            <DataGridTextColumn Header="Enforced" Binding="{Binding Enforced}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="5" Margin="0,13,0,0">
+                        <TextBlock Text="Link the selected GPO to a target" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="GpoLinkTarget" Width="420" Margin="0,0,8,0" ToolTip="Distinguished name of the OU or domain root, e.g. OU=Workstations,DC=lab,DC=local"/>
+                            <Button x:Name="GpoLinkButton" Content="Link to target" Style="{StaticResource Primary}"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock Text="With the selected link:" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button x:Name="GpoUnlinkButton" Content="Unlink" Style="{StaticResource Danger}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="7" Margin="0,16,0,0">
+                        <TextBlock Text="Create the toolkit's hardening GPO" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="GpoCreateName" Width="220" Margin="0,0,8,0" ToolTip="GPO name, e.g. Baseline-Hardening-Policy"/>
+                            <TextBox x:Name="GpoCreateTarget" Width="340" Margin="0,0,8,0" ToolTip="Where to link it -- OU or domain root distinguished name"/>
+                            <Button x:Name="GpoCreateButton" Content="Create hardening GPO"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
             <!-- ============================ Services ============================ -->
             <TabItem Header="Services">
                 <Grid Margin="22,18">

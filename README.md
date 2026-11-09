@@ -111,11 +111,17 @@ before cleaning it up.
   with what it means and what to do — plus every service `ScoredServices` says
   is scored on this host checked against what is actually listening (a local
   check: a port can be listening while a firewall in front of it drops the
-  traffic). **Accounts** and **Services** tabs for the changes an inject
-  usually asks for, each confirmed, backed up and logged. **Modules** opens any
-  module in its own console window. **Activity** mirrors everything into the
-  session transcript. All work runs on background runspaces so the window never
-  freezes; needs a desktop, so not Server Core.
+  traffic). **Accounts**, **Services**, **Tasks** and **Firewall** tabs for
+  the changes an inject usually asks for, each confirmed, backed up and
+  logged. **DNS** and **DHCP** tabs (useful only on the box running that
+  role) for zones/records and scopes/reservations. **Group Policy**: list
+  every GPO and what it's linked to, link/unlink one, and create the
+  toolkit's hardening GPO — through the same shared function
+  `Invoke-ADHardening.ps1` uses, so the window and that module can't
+  disagree. **Modules** opens any module in its own console window.
+  **Activity** mirrors everything into the session transcript. All work runs
+  on background runspaces so the window never freezes; needs a desktop, so
+  not Server Core.
 - **`modules/Common.psm1`** — not run directly. Shared logging, backups,
   the answer-file/prompt system, and the "one failure doesn't kill the
   run" wrapper every other module is built on. Also restricts `logs\`

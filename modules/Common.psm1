@@ -212,6 +212,94 @@ function Invoke-CcdcSafe {
     }
 }
 
+function New-CcdcHardeningGpo {
+    <#
+    .SYNOPSIS
+        Create (or update) the toolkit's hardening GPO and link it -- the
+        exact same policy values Invoke-ADHardening.ps1 sets, as the one
+        shared function both that module and the admin console's UI call.
+        Kept here, not in CcdcLogic.ps1, because this is a real mutation
+        (New-GPO/Set-GPRegistryValue/New-GPLink), not a pure verdict -- the
+        same reason Invoke-CcdcSafe/Backup-CcdcState live in this module
+        rather than CcdcLogic.ps1.
+
+    .PARAMETER GpoName
+        Name for the hardening GPO. Created if it doesn't exist; if it
+        does, its registry values are updated rather than duplicating it.
+
+    .PARAMETER TargetOU
+        Distinguished name of the OU (or the domain root) to link the GPO
+        to. Optional -- if blank, the GPO is still created/updated but
+        left unlinked, with a WARN saying so (the caller resolves its own
+        default, e.g. the domain root; this function doesn't guess).
+
+    .DESCRIPTION
+        Disables LLMNR, anonymous SMB/SAM enumeration, and requires
+        NTLMv2 + SMB signing -- the same six registry values
+        Invoke-ADHardening.ps1 has always set. Edit the $policyValues
+        table here, not in that module, if the policy itself ever changes:
+        this is the one place it's defined.
+    #>
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)][string]$GpoName,
+        [string]$TargetOU
+    )
+
+    $policyValues = @(
+        [pscustomobject]@{ Key = 'HKLM\Software\Policies\Microsoft\Windows NT\DNSClient'; Name = 'EnableMulticast'; Type = 'DWord'; Value = 0; Description = 'Disable LLMNR' }
+        [pscustomobject]@{ Key = 'HKLM\System\CurrentControlSet\Control\Lsa'; Name = 'RestrictAnonymous'; Type = 'DWord'; Value = 1; Description = 'Disable anonymous SMB enumeration' }
+        [pscustomobject]@{ Key = 'HKLM\System\CurrentControlSet\Control\Lsa'; Name = 'RestrictAnonymousSAM'; Type = 'DWord'; Value = 1; Description = 'Disable anonymous SAM enumeration' }
+        [pscustomobject]@{ Key = 'HKLM\System\CurrentControlSet\Control\Lsa'; Name = 'LmCompatibilityLevel'; Type = 'DWord'; Value = 5; Description = 'NTLMv2 only (refuse LM/NTLM)' }
+        [pscustomobject]@{ Key = 'HKLM\System\CurrentControlSet\Services\LanmanWorkstation\Parameters'; Name = 'RequireSecuritySignature'; Type = 'DWord'; Value = 1; Description = 'Require SMB signing (client)' }
+        [pscustomobject]@{ Key = 'HKLM\System\CurrentControlSet\Services\LanmanServer\Parameters'; Name = 'RequireSecuritySignature'; Type = 'DWord'; Value = 1; Description = 'Require SMB signing (server)' }
+    )
+
+    $result = [pscustomobject]@{ Success = $false; GpoName = $GpoName; LinkedTo = $null; PolicyValuesSet = 0; Message = $null }
+    if (-not $PSCmdlet.ShouldProcess($GpoName, 'Create/update hardening GPO and link it')) { return $result }
+
+    $existingGpo = Get-GPO -Name $GpoName -ErrorAction SilentlyContinue
+    if (-not $existingGpo) {
+        $gpoOutcome = Invoke-CcdcSafe -Target $GpoName -Action 'create hardening GPO' -ScriptBlock {
+            New-GPO -Name $GpoName -ErrorAction Stop
+        }
+    } else {
+        Write-CcdcLog -Level INFO -Message "'$GpoName' already exists -- updating its registry values rather than creating a duplicate."
+        $gpoOutcome = [pscustomobject]@{ Success = $true }
+    }
+    if (-not $gpoOutcome.Success) { $result.Message = 'Could not create the GPO.'; return $result }
+
+    $anyFailed = $false
+    foreach ($pv in $policyValues) {
+        $setOutcome = Invoke-CcdcSafe -Target "$($pv.Key)\$($pv.Name)" -Action "set GPO value: $($pv.Description)" -ScriptBlock {
+            Set-GPRegistryValue -Name $GpoName -Key $pv.Key -ValueName $pv.Name -Type $pv.Type -Value $pv.Value -ErrorAction Stop
+        }
+        if ($setOutcome.Success) { $result.PolicyValuesSet++ } else { $anyFailed = $true }
+    }
+    if (-not $anyFailed) { Write-CcdcLog -Level OK -Message "All $($policyValues.Count) policy value(s) set on '$GpoName'." }
+
+    if ($TargetOU) {
+        $linkOutcome = Invoke-CcdcSafe -Target $TargetOU -Action "link '$GpoName'" -ScriptBlock {
+            if (-not (Get-GPInheritance -Target $TargetOU -ErrorAction SilentlyContinue | Select-Object -ExpandProperty GpoLinks | Where-Object { $_.DisplayName -eq $GpoName })) {
+                New-GPLink -Name $GpoName -Target $TargetOU -ErrorAction Stop | Out-Null
+            }
+        }
+        if ($linkOutcome.Success) {
+            $result.LinkedTo = $TargetOU
+            Write-CcdcLog -Level OK -Message "'$GpoName' linked to $TargetOU. Changes apply on the next Group Policy refresh (gpupdate /force on a host, or wait for the normal refresh interval)."
+        }
+    } else {
+        Write-CcdcLog -Level WARN -Message "No link target given -- '$GpoName' was created/updated but is NOT linked anywhere yet. Link it by hand (or pass -TargetOU) once you've confirmed where."
+        $linkOutcome = [pscustomobject]@{ Success = $true }
+    }
+
+    $result.Success = (-not $anyFailed) -and $linkOutcome.Success
+    $result.Message = if (-not $result.Success) { "'$GpoName' created/updated, but something failed -- see the log above." }
+        elseif ($result.LinkedTo) { "'$GpoName' created/updated and linked to $TargetOU." }
+        else { "'$GpoName' created/updated. Not linked anywhere yet." }
+    return $result
+}
+
 function Show-CcdcSummary {
     <#
     .SYNOPSIS
@@ -747,7 +835,7 @@ function Get-CcdcInventory {
 
 Export-ModuleMember -Function `
     Start-CcdcSession, Stop-CcdcSession, Write-CcdcLog, Backup-CcdcState, `
-    Invoke-CcdcSafe, Show-CcdcSummary, Import-CcdcAnswers, Get-CcdcAnswer, `
+    Invoke-CcdcSafe, Show-CcdcSummary, New-CcdcHardeningGpo, Import-CcdcAnswers, Get-CcdcAnswer, `
     New-CcdcRandomPassword, Get-CcdcInventory, Get-CcdcScoredServiceList, `
     Get-CcdcAdministratorsMember, Test-CcdcElevated, `
     Assert-CcdcElevated, Protect-CcdcSensitiveFolder, `
