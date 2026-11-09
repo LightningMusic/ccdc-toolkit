@@ -78,6 +78,15 @@ function global:Get-DnsServerResourceRecord {
     [pscustomobject]@{ HostName = 'www'; RecordType = 'A'; RecordData = '10.10.10.20' }
     if ($global:Pass -eq 2) { [pscustomobject]@{ HostName = 'evil'; RecordType = 'A'; RecordData = '10.10.10.99' } }
 }
+function global:Get-DhcpServerv4Scope {
+    param($ErrorAction)
+    [pscustomobject]@{ ScopeId = [ipaddress]'10.10.10.0' }
+}
+function global:Get-DhcpServerv4Reservation {
+    param($ScopeId, $ErrorAction)
+    [pscustomobject]@{ IPAddress = '10.10.10.50'; ClientId = '00-11-22-33-44-55'; Name = 'printer' }
+    if ($global:Pass -eq 2) { [pscustomobject]@{ IPAddress = '10.10.10.99'; ClientId = 'AA-BB-CC-DD-EE-FF'; Name = 'rogue' } }
+}
 $global:IsDc = [bool]$AsDomainController
 $global:Tampered = [bool]$Tampered
 $global:DefenderUnreadable = [bool]$DefenderUnreadable

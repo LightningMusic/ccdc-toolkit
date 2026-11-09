@@ -392,7 +392,7 @@ Describe 'baseline area verdicts' {
         (Get-CcdcBaselineAreaVerdict -Area 'Services' -Diff (Drift)).Level | Should Be 'OK'
     }
     It 'escalates high-stakes areas to ERROR on any drift at all' {
-        foreach ($a in 'DnsZoneFiles', 'DnsZones', 'LocalAdministrators', 'Services', 'ScheduledTasks') {
+        foreach ($a in 'DnsZoneFiles', 'DnsZones', 'DhcpScopes', 'DhcpScopeOptions', 'DhcpAuthorizedServers', 'LocalAdministrators', 'Services', 'ScheduledTasks') {
             (Get-CcdcBaselineAreaVerdict -Area $a -Diff (Drift -added 1)).Level | Should Be 'ERROR'
         }
     }

@@ -827,6 +827,37 @@ function Invoke-HuntPass {
         Write-CcdcLog -Level INFO -Message "Get-DnsServerResourceRecord or Get-ADDomain not available — skipping DNS record check (needs the DnsServer module, usually only present on a DNS server)."
     }
 
+    # -- DHCP reservations (diffed) -----------------------------------------
+    # Record-level complement to Invoke-ConfigBaseline's scope-level DHCP
+    # areas, same split as DNS: zone/scope STRUCTURE is a baseline question,
+    # an individual record/reservation appearing or changing is a hunt
+    # question ("what's new since I last looked"). A rogue reservation pins
+    # a trusted hostname to a hostile IP the same way a rogue DNS record
+    # redirects traffic -- same attack shape, different protocol.
+    if (Get-Command -Name Get-DhcpServerv4Scope -ErrorAction SilentlyContinue) {
+        $dhcpOutcome = Invoke-CcdcSafe -Target 'DHCP reservations' -Action 'list DHCP reservations' -ScriptBlock {
+            Get-DhcpServerv4Scope -ErrorAction Stop | ForEach-Object {
+                $scopeId = $_.ScopeId
+                Get-DhcpServerv4Reservation -ScopeId $scopeId -ErrorAction Stop | ForEach-Object {
+                    "$($_.IPAddress) $($_.ClientId) $($_.Name)"
+                }
+            }
+        }
+        if ($dhcpOutcome.Success) {
+            $current.DhcpReservations = @($dhcpOutcome.Value)
+            if ($PreviousState) {
+                $newReservations = Get-CcdcNewItems -Previous $PreviousState.DhcpReservations -Current $current.DhcpReservations
+                foreach ($r in $newReservations) {
+                    Write-CcdcLog -Level WARN -Message "DHCP reservation added or changed since last check: $r"
+                }
+            } else {
+                Write-CcdcInitialBaseline -Label 'DHCP reservations' -Items $current.DhcpReservations -BaselineDir $baselineDir
+            }
+        }
+    } else {
+        Write-CcdcLog -Level INFO -Message "Get-DhcpServerv4Scope not available — skipping DHCP reservation check (needs the DhcpServer module, usually only present on the DHCP server)."
+    }
+
     # -- Recently dropped/modified files in common staging locations ----
     $rootsToScan = @(
         $env:TEMP,

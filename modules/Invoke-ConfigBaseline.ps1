@@ -23,6 +23,9 @@
       DnsZoneFiles        SHA-256 of each file-backed zone on disk
       DnsServerSettings   recursion, forwarders, socket pool, cache locking
       DnsRecordCounts     how many records each zone holds
+      DhcpScopes          each scope's range, mask, state and lease duration
+      DhcpScopeOptions    each scope's DNS server, domain and router options
+      DhcpAuthorizedServers  DHCP servers authorized for this domain in AD
       WatchedFiles        SHA-256 of everything under -WatchPath (web roots etc.)
       Services            start type and binary path per service
       ScheduledTasks      non-Microsoft tasks and what they execute
@@ -314,6 +317,83 @@ function Get-DnsZoneArea {
     }
 }
 
+function Get-DhcpScopeArea {
+    <#
+    .SYNOPSIS
+        DHCP's equivalent of Get-DnsZoneArea. Where DHCP actually runs is
+        the AD/DNS box itself, not a separate server -- a scope silently
+        losing its range, or its DNS/router options getting pointed at a
+        hostile box, is the same shape of attack as a DNS zone file going
+        missing: everything downstream just stops working, quietly.
+
+    .DESCRIPTION
+        Three areas, same granularity as the DNS ones:
+          Scopes             range, mask, state, lease duration per scope
+          ScopeOptions       the DNS server / domain / router options per
+                              scope -- specifically what a redirect attack
+                              would change
+          AuthorizedServers  DHCP servers authorized for this domain in AD
+                              (Get-DhcpServerInDC) -- catches a rogue second
+                              server getting authorized, or the real one
+                              losing authorization
+
+        Individual RESERVATIONS are deliberately not captured here -- a
+        reservation appearing or changing between two points in time is a
+        threat-hunt question ("what is new since I last looked"), the same
+        way individual DNS records are Invoke-ThreatHunt's job and not
+        this module's. This function only covers scope-level structure,
+        same boundary as Get-DnsZoneArea covers zone-level structure and
+        leaves individual records to the hunt.
+    #>
+    $scopes = New-Object System.Collections.Generic.List[object]
+    $options = New-Object System.Collections.Generic.List[object]
+    $authServers = New-Object System.Collections.Generic.List[object]
+
+    if (-not (Get-Command -Name Get-DhcpServerv4Scope -ErrorAction SilentlyContinue)) {
+        Write-CcdcLog -Level INFO -Message "No DhcpServer module on this box -- skipping the DHCP areas. That is expected on anything that is not the DHCP server."
+        return [pscustomobject]@{ Scopes = @(); Options = @(); AuthorizedServers = @() }
+    }
+
+    $scopeOutcome = Invoke-CcdcSafe -Target 'DHCP scopes' -Action 'read scope list' -ScriptBlock {
+        Get-DhcpServerv4Scope -ErrorAction Stop
+    }
+    if (-not $scopeOutcome.Success) {
+        return [pscustomobject]@{ Scopes = @(); Options = @(); AuthorizedServers = @() }
+    }
+
+    foreach ($s in @($scopeOutcome.Value)) {
+        $scopeKey = $s.ScopeId.IPAddressToString
+        $scopes.Add((New-Pair -Key $scopeKey -Value ("range=$($s.StartRange)-$($s.EndRange); mask=$($s.SubnetMask); state=$($s.State); leaseduration=$($s.LeaseDuration)")))
+
+        $optOutcome = Invoke-CcdcSafe -Target "DHCP options for $scopeKey" -Action 'read scope options' -ScriptBlock {
+            Get-DhcpServerv4OptionValue -ScopeId $s.ScopeId -ErrorAction Stop
+        }
+        if ($optOutcome.Success) {
+            $byId = @{}
+            foreach ($o in @($optOutcome.Value)) { $byId[[int]$o.OptionId] = ($o.Value -join ',') }
+            # 3 = Router, 6 = DNS Servers, 15 = DNS Domain Name -- the three
+            # options a redirect attack would actually change.
+            $dns = if ($byId.ContainsKey(6)) { $byId[6] } else { '' }
+            $domain = if ($byId.ContainsKey(15)) { $byId[15] } else { '' }
+            $router = if ($byId.ContainsKey(3)) { $byId[3] } else { '' }
+            $options.Add((New-Pair -Key $scopeKey -Value "dns=$dns; domain=$domain; router=$router"))
+        }
+    }
+
+    $authOutcome = Invoke-CcdcSafe -Target 'DHCP authorized servers' -Action 'read authorized servers' -ScriptBlock {
+        Get-DhcpServerInDC -ErrorAction Stop
+    }
+    if ($authOutcome.Success) {
+        foreach ($a in @($authOutcome.Value)) { $authServers.Add((New-Pair -Key $a.DnsName -Value ([string]$a.IPAddress))) }
+    }
+
+    return [pscustomobject]@{
+        Scopes            = $scopes.ToArray()
+        Options           = $options.ToArray()
+        AuthorizedServers = $authServers.ToArray()
+    }
+}
+
 function Get-WatchedFileArea {
     param([string[]]$Paths)
     $out = New-Object System.Collections.Generic.List[object]
@@ -538,6 +618,7 @@ function Test-RebootPending {
 function Get-CurrentSnapshot {
     Write-CcdcLog -Level INFO -Message "Collecting current configuration. Nothing is changed by this."
     $dns = Get-DnsZoneArea
+    $dhcp = Get-DhcpScopeArea
     $accounts = Get-AccountArea
     $fw = Get-FirewallArea
     $hotfix = Get-HotfixArea
@@ -557,6 +638,9 @@ function Get-CurrentSnapshot {
         DnsRecordCounts     = $dns.Counts
         DnsFileBackedZones  = $dns.FileBacked
         DnsAdIntegratedZones = $dns.AdIntegrated
+        DhcpScopes          = $dhcp.Scopes
+        DhcpScopeOptions    = $dhcp.Options
+        DhcpAuthorizedServers = $dhcp.AuthorizedServers
         WatchedFiles        = (Get-WatchedFileArea -Paths $allWatchPaths)
         Services            = (Get-ServiceArea)
         ScheduledTasks      = (Get-ScheduledTaskArea)
@@ -577,6 +661,7 @@ function Get-CurrentSnapshot {
 # so that a long report still leads with what matters.
 $script:AreaOrder = @(
     'DnsZones', 'DnsZoneFiles', 'DnsServerSettings', 'DnsRecordCounts',
+    'DhcpScopes', 'DhcpScopeOptions', 'DhcpAuthorizedServers',
     'LocalAdministrators', 'Services', 'ScheduledTasks', 'AutoRuns',
     'WatchedFiles', 'LocalUsers', 'ListeningPorts',
     'FirewallProfiles', 'FirewallRules', 'Hotfixes'

@@ -59,7 +59,7 @@ Describe 'Invoke-ConfigBaseline: capture then verify with nothing changed' {
         # test that fails for that reason teaches nothing. The areas below
         # do not move on their own.
         if (-not $script:Engine) { return }
-        foreach ($area in 'DnsZones', 'DnsZoneFiles', 'LocalAdministrators', 'Services', 'ScheduledTasks', 'WatchedFiles', 'FirewallRules') {
+        foreach ($area in 'DnsZones', 'DnsZoneFiles', 'DhcpScopes', 'DhcpScopeOptions', 'DhcpAuthorizedServers', 'LocalAdministrators', 'Services', 'ScheduledTasks', 'WatchedFiles', 'FirewallRules') {
             (Test-VerifyHas $script:Run "$area : matches the baseline") | Should Be $true
         }
         (Test-VerifyHas $script:Run 'Name check: nothing odd') | Should Be $true

@@ -1202,8 +1202,8 @@ function Get-CcdcBaselineAreaVerdict {
         changed.
 
         Areas marked high-stakes here escalate any drift at all to ERROR:
-        privileged group membership, DNS zone files, services and
-        scheduled tasks. Everything else reports WARN, because on a box
+        privileged group membership, DNS zone files, DHCP scope config,
+        services and scheduled tasks. Everything else reports WARN, because on a box
         being actively hardened some drift is your own work and crying
         ERROR at all of it trains people to ignore the output.
     #>
@@ -1220,7 +1220,7 @@ function Get-CcdcBaselineAreaVerdict {
         return [pscustomobject]@{ Area = $Area; Level = 'OK'; Message = "$Area : matches the baseline ($($Diff.BaselineSize) item(s))." }
     }
 
-    $highStakes = @('DnsZoneFiles', 'DnsZones', 'LocalAdministrators', 'DomainAdmins', 'EnterpriseAdmins', 'Services', 'ScheduledTasks')
+    $highStakes = @('DnsZoneFiles', 'DnsZones', 'DhcpScopes', 'DhcpScopeOptions', 'DhcpAuthorizedServers', 'LocalAdministrators', 'DomainAdmins', 'EnterpriseAdmins', 'Services', 'ScheduledTasks')
     $level = if ($highStakes -contains $Area) { 'ERROR' } else { 'WARN' }
 
     $parts = New-Object System.Collections.Generic.List[string]

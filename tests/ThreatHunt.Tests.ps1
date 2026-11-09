@@ -83,6 +83,10 @@ Describe 'Invoke-ThreatHunt: first pass with red team already present' {
         (Test-LogHas $script:Pass1 'UNVERIFIED.*GPOs \(name \+ modification time\) already present') | Should Be $true
         (Test-LogHas $script:Pass1 'UNVERIFIED.*DNS zone records already present') | Should Be $true
     }
+    It 'baselines DHCP reservations too, so a pre-planted rogue reservation is not silently trusted' {
+        if (-not $script:Engine) { return }
+        (Test-LogHas $script:Pass1 'UNVERIFIED.*DHCP reservations already present') | Should Be $true
+    }
     It 'still flags the known default C2 port every pass' {
         if (-not $script:Engine) { return }
         (Test-LogHas $script:Pass1 '\[ERROR\].*known default C2 port: 4444') | Should Be $true
@@ -121,6 +125,7 @@ Describe 'Invoke-ThreatHunt: second pass shows only what changed' {
         (Test-LogHas $script:Pass2 'New Run-key persistence entry since last check: .*Beacon') | Should Be $true
         (Test-LogHas $script:Pass2 'GPO created or modified since last check: Default Domain Policy') | Should Be $true
         (Test-LogHas $script:Pass2 'DNS record added or changed since last check: evil') | Should Be $true
+        (Test-LogHas $script:Pass2 'DHCP reservation added or changed since last check: 10.10.10.99 AA-BB-CC-DD-EE-FF rogue') | Should Be $true
     }
     It 'keeps flagging the C2 port even though it is no longer new' {
         if (-not $script:Engine) { return }
