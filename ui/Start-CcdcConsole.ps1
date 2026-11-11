@@ -1109,6 +1109,18 @@ function Get-SelectedAccount {
 
 function Invoke-AccountAction {
     param([string]$Action, [string]$Name, [string]$Group, [string]$Confirm)
+    # On a domain controller, Get-LocalUser returns directory objects --
+    # including COMPUTER accounts, since a DC has no local SAM of its own.
+    # The Accounts tab's own list (Local scope, the tab's default) can
+    # therefore show e.g. "LABSQL$" mixed in with real user accounts, with
+    # nothing marking it as different. Resetting or disabling one breaks
+    # that machine's secure channel with the domain -- a real, previously
+    # live-found bug in Invoke-CredentialHardening.ps1, now guarded here
+    # with the exact same check so this tab can't reproduce it.
+    if (-not (Test-CcdcRotatableAccountName -Name $Name)) {
+        Write-UiLog -Level WARN -Message "'$Name' looks like a computer/trust account (ends in '$'), not a user -- refusing to $Action it. Resetting or disabling a computer account breaks that machine's domain trust."
+        return
+    }
     if ($Confirm -and -not (Confirm-UiAction -Message $Confirm)) { Write-UiLog -Level INFO -Message 'Cancelled.'; return }
     $scope = "$($ui.AccountScopeCombo.SelectedItem)"
     Write-UiLog -Level ACTION -Message "$Action on '$Name' ($scope)."

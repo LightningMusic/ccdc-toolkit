@@ -52,6 +52,17 @@ function script:Get-UiSwitchCaseText {
     }
     return $null
 }
+function script:Get-UiFunctionBodyText {
+    # The body text of a real top-level function in the script (as opposed
+    # to Get-UiStringVariable, which reads a "$script:X = @'...'@" work-script
+    # string) -- for asserting a safety check exists in the UI thread's own
+    # handler code, not just inside a background runspace's work-script.
+    param([string]$Name)
+    $ast = Get-UiAst
+    $fn = $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $Name }, $true) | Select-Object -First 1
+    if (-not $fn) { return $null }
+    return $fn.Body.Extent.Text
+}
 function script:Get-DeclaredControlNames {
     $ast = Get-UiAst
     $assign = $ast.FindAll({ param($n)
@@ -212,6 +223,17 @@ Describe 'the background work scripts' {
             $adOrLocalPaths = @([regex]::Matches($branch, 'if \(\$isAd\)')).Count
             if ($adOrLocalPaths -gt 0) { $backups | Should BeGreaterThan 1 } else { $backups | Should BeGreaterThan 0 }
         }
+    }
+    It 'refuses to act on a computer/trust account (name ending in $) BEFORE even confirming -- on a DC, Get-LocalUser returns directory objects including computer accounts, and resetting/disabling one breaks that machine''s domain trust' {
+        $body = Get-UiFunctionBodyText -Name 'Invoke-AccountAction'
+        $body | Should Not BeNullOrEmpty
+        $body | Should Match 'Test-CcdcRotatableAccountName'
+        # The check has to come before the confirm dialog, not after --
+        # otherwise a user could click through the "are you sure" prompt
+        # for a computer account before the guard ever stops it.
+        $guardIndex = $body.IndexOf('Test-CcdcRotatableAccountName')
+        $confirmIndex = $body.IndexOf('Confirm-UiAction')
+        $guardIndex | Should BeLessThan $confirmIndex
     }
     It 'removing someone from a group passes -Confirm:$false on both paths -- Remove-ADGroupMember and Remove-LocalGroupMember both prompt by default, and nothing is watching this background runspace to answer that prompt' {
         $branch = Get-UiSwitchCaseText -VariableName 'WorkAccountAction' -CaseLabel 'RemoveFromGroup'
