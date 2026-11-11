@@ -35,7 +35,10 @@ those under time pressure. Print it or keep it open in a second window.
    desktop: its dashboard tells you in one look whether the firewall is
    default-block, whether logging is running, and whether the services your
    packet scores are actually listening. Keep it open and hit Refresh
-   whenever you want to know the box is still healthy.
+   whenever you want to know the box is still healthy. On the AD/DNS/DHCP
+   box specifically, its DNS/DHCP/Group Policy tabs are the fast path for
+   an inject that says "fix this record/scope/reservation/GPO" — faster
+   than hunting for the right cmdlet under time pressure.
 3. **[5] Run firewall baseline** (after previewing with **[4]**), **first,
    before anything else** — team decision, 2026-10-14. It reads
    `ScoredServices` straight from `config\answers.local.psd1` when
@@ -91,7 +94,10 @@ those under time pressure. Print it or keep it open in a second window.
 12. **[17] Capture a config baseline**, now that the hardening pass above is
     actually done. This is what gives **[18] Verify** something real to
     compare against later instead of a moving target — do this LAST of the
-    hardening steps, not first.
+    hardening steps, not first. On the AD/DNS/DHCP box this also captures
+    DHCP scope/option/authorized-server state (same high-stakes tier as DNS
+    zone files) and the threat hunt diffs DHCP reservations and GPO links
+    pass-to-pass, same as DNS records.
 13. **[9] Start threat-hunt watching**, in its own window, running
    continuously (`.\modules\Invoke-ThreatHunt.ps1 -Continuous` called
    directly, not through the menu). Its first pass is NOT a clean-slate
@@ -103,13 +109,15 @@ those under time pressure. Print it or keep it open in a second window.
 
 ## During the round
 
-- **[10] Admin console** for anything an inject asks for that isn't
-  automatic. Read the warning before using option 9 (custom command) —
-  never type a password directly into it, it gets logged. Its own option
-  10 (threat response) is the fast path to block a malicious IP or
-  sinkhole a malicious domain the moment you've identified one — reactive
-  blocking like this is explicitly allowed by the packet; allow-listing
-  only the scoring engine's IP instead is not, and the prompt says so.
+- **[10] Admin console** (or the **W** window's tabs) for anything an
+  inject asks for that isn't automatic — accounts, DNS, DHCP, Group
+  Policy, services, scheduled tasks, firewall rules. Read the warning
+  before using option 9 (custom command) — never type a password directly
+  into it, it gets logged. Its own option 10 (threat response) is the fast
+  path to block a malicious IP or sinkhole a malicious domain the moment
+  you've identified one — reactive blocking like this is explicitly
+  allowed by the packet; allow-listing only the scoring engine's IP
+  instead is not, and the prompt says so.
 - **[13] Packet capture** the moment you catch something, BEFORE you
   clean it up — timestamped proof is worth real points.
 - **[11] Write an incident report** as soon as possible after handling
