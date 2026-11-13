@@ -159,6 +159,11 @@ Describe 'nothing environment-specific or fingerprintable in a public repo' {
         $bad = @()
         foreach ($f in (Get-RepoFile '.ps1', '.psm1', '.psd1', '.md')) {
             if ($f.Name -eq 'CCDC_Competition_Compendium.md') { continue }
+            # *.local.psd1 (config\answers.local.psd1 and friends) is
+            # gitignored -- it never ships with a clone, so it is not "code
+            # or docs other than documentation examples." It's exactly the
+            # file real, environment-specific IPs are SUPPOSED to live in.
+            if ($f.Name -like '*.local.psd1') { continue }
             $n = 0
             foreach ($line in [System.IO.File]::ReadAllLines($f.FullName)) {
                 $n++
