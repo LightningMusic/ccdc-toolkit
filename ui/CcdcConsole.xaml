@@ -301,7 +301,7 @@
                             <Button x:Name="AccountAddGroupButton" Content="Add to group"/>
                             <Button x:Name="AccountRemoveGroupButton" Content="Remove from group"/>
                         </StackPanel>
-                        <TextBlock Text="Create a new account" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <TextBlock Text="Create a new account -- boxes below, in order: login name, group to add them to (optional)" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7" TextWrapping="Wrap"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBox x:Name="AccountNewName" Width="190" Margin="0,0,8,0" ToolTip="Login name"/>
                             <TextBox x:Name="AccountNewGroup" Width="180" Margin="0,0,8,0" ToolTip="Group to add them to (optional)"/>
@@ -367,7 +367,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
                     <StackPanel Grid.Row="5" Margin="0,13,0,0">
-                        <TextBlock Text="Add a record to the selected zone" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <TextBlock Text="Add a record to the selected zone -- boxes below, in order: host name, type, value (A: IP, CNAME: target host, TXT: text), TTL seconds (optional)" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7" TextWrapping="Wrap"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBox x:Name="DnsRecordName" Width="160" Margin="0,0,8,0" ToolTip="Host name, e.g. app01"/>
                             <ComboBox x:Name="DnsRecordTypeCombo" Width="90" Margin="0,0,8,0"/>
@@ -425,7 +425,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
                     <StackPanel Grid.Row="5" Margin="0,13,0,0">
-                        <TextBlock Text="Add a reservation to the selected scope" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <TextBlock Text="Add a reservation to the selected scope -- boxes below, in order: full IP address (e.g. 172.20.240.50), client MAC address (e.g. 00-11-22-33-44-55), name (optional), description (optional)" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7" TextWrapping="Wrap"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBox x:Name="DhcpResIp" Width="140" Margin="0,0,8,0" ToolTip="IP address to reserve, e.g. 172.20.240.50"/>
                             <TextBox x:Name="DhcpResClientId" Width="160" Margin="0,0,8,0" ToolTip="Client MAC address, e.g. 00-11-22-33-44-55"/>
@@ -480,7 +480,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
                     <StackPanel Grid.Row="5" Margin="0,13,0,0">
-                        <TextBlock Text="Link the selected GPO to a target" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <TextBlock Text="Link the selected GPO to a target -- box below: target distinguished name (OU or domain root, e.g. OU=Workstations,DC=lab,DC=local)" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7" TextWrapping="Wrap"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBox x:Name="GpoLinkTarget" Width="420" Margin="0,0,8,0" ToolTip="Distinguished name of the OU or domain root, e.g. OU=Workstations,DC=lab,DC=local"/>
                             <Button x:Name="GpoLinkButton" Content="Link to target" Style="{StaticResource Primary}"/>
@@ -491,7 +491,7 @@
                         <Button x:Name="GpoUnlinkButton" Content="Unlink" Style="{StaticResource Danger}"/>
                     </StackPanel>
                     <StackPanel Grid.Row="7" Margin="0,16,0,0">
-                        <TextBlock Text="Create the toolkit's hardening GPO" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <TextBlock Text="Create the toolkit's hardening GPO -- boxes below, in order: GPO name, target distinguished name to link it to" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7" TextWrapping="Wrap"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBox x:Name="GpoCreateName" Width="220" Margin="0,0,8,0" ToolTip="GPO name, e.g. Baseline-Hardening-Policy"/>
                             <TextBox x:Name="GpoCreateTarget" Width="340" Margin="0,0,8,0" ToolTip="Where to link it -- OU or domain root distinguished name"/>
@@ -582,7 +582,7 @@
                             <Button x:Name="TaskEnableButton" Content="Enable"/>
                             <Button x:Name="TaskDeleteButton" Content="Delete" Style="{StaticResource Danger}"/>
                         </StackPanel>
-                        <TextBlock Text="Create a new task" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <TextBlock Text="Create a new task -- boxes below, in order: task name, program to run, arguments (optional), trigger" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7" TextWrapping="Wrap"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBox x:Name="TaskNewName" Width="150" Margin="0,0,8,0" ToolTip="Task name"/>
                             <TextBox x:Name="TaskNewCommand" Width="220" Margin="0,0,8,0" ToolTip="Program to run, e.g. C:\Windows\System32\cmd.exe"/>
@@ -636,7 +636,7 @@
                         <Button x:Name="FirewallRemoveButton" Content="Remove" Style="{StaticResource Danger}"/>
                     </StackPanel>
                     <StackPanel Grid.Row="4">
-                        <TextBlock Text="Add a rule" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7"/>
+                        <TextBlock Text="Add a rule -- boxes below, in order: rule name, direction, action, protocol, port (optional for ICMP), remote IP/CIDR (optional, blank = Any)" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,7" TextWrapping="Wrap"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBox x:Name="FwNewName" Width="150" Margin="0,0,8,0" ToolTip="Rule name"/>
                             <ComboBox x:Name="FwDirectionCombo" Width="90" Margin="0,0,8,0"/>

@@ -211,6 +211,22 @@ function Confirm-UiAction {
     return ($answer -eq [System.Windows.MessageBoxResult]::Yes)
 }
 
+function Select-UiFirstRow {
+    <#
+        Found live, the day before competition: a one-row master list (one
+        DHCP scope, one matching GPO) LOOKS already selected -- there is
+        nothing else it could mean -- but WPF's DataGrid does not auto-select
+        anything, so every follow-on action failed with "pick one from the
+        list first" even though the only row was sitting right there. Every
+        "List X" handler that drives a later action (DNS zones, DHCP scopes,
+        GPOs) calls this right after setting ItemsSource so that case just
+        works, without requiring a click that has no visible reason to be
+        necessary when there is exactly one option.
+    #>
+    param([Parameter(Mandatory)]$Grid)
+    if ($Grid.Items.Count -gt 0 -and -not $Grid.SelectedItem) { $Grid.SelectedItem = $Grid.Items[0] }
+}
+
 # ---------------------------------------------------------------------------
 # Background work.
 #
@@ -1148,6 +1164,7 @@ function Update-DnsZones {
         param($result)
         $rows = @($result.Data)
         $ui.DnsZoneGrid.ItemsSource = $rows
+        Select-UiFirstRow -Grid $ui.DnsZoneGrid
         $bad = @($rows | Where-Object { $_.TransfersBrush -eq '#F85149' -or $_.UpdatesBrush -eq '#F85149' })
         if ($bad.Count -gt 0) { Write-UiLog -Level WARN -Message "$($bad.Count) zone(s) have an open transfer or update setting: $(($bad | ForEach-Object { $_.ZoneName }) -join ', ')." }
         Write-UiLog -Level INFO -Message "$($rows.Count) zone(s) listed."
@@ -1156,8 +1173,9 @@ function Update-DnsZones {
 
 function Get-SelectedZone {
     $row = $ui.DnsZoneGrid.SelectedItem
-    if (-not $row) { Write-UiLog -Level WARN -Message 'Pick a zone in the list first.'; return $null }
-    return "$($row.ZoneName)"
+    $zone = if ($row) { "$($row.ZoneName)" } else { '' }
+    if (-not $zone) { Write-UiLog -Level WARN -Message 'Pick a zone in the list first.'; return $null }
+    return $zone
 }
 
 function Update-DnsRecords {
@@ -1210,14 +1228,16 @@ function Update-DhcpScopes {
         param($result)
         $rows = @($result.Data)
         $ui.DhcpScopeGrid.ItemsSource = $rows
+        Select-UiFirstRow -Grid $ui.DhcpScopeGrid
         Write-UiLog -Level INFO -Message "$($rows.Count) scope(s) listed."
     }
 }
 
 function Get-SelectedScope {
     $row = $ui.DhcpScopeGrid.SelectedItem
-    if (-not $row) { Write-UiLog -Level WARN -Message 'Pick a scope in the list first.'; return $null }
-    return "$($row.ScopeId)"
+    $scope = if ($row) { "$($row.ScopeId)" } else { '' }
+    if (-not $scope) { Write-UiLog -Level WARN -Message 'Pick a scope in the list first.'; return $null }
+    return $scope
 }
 
 function Update-DhcpReservations {
@@ -1256,14 +1276,16 @@ function Update-GpoList {
         param($result)
         $rows = @($result.Data)
         $ui.GpoGrid.ItemsSource = $rows
+        Select-UiFirstRow -Grid $ui.GpoGrid
         Write-UiLog -Level INFO -Message "$($rows.Count) GPO(s) listed."
     }
 }
 
 function Get-SelectedGpo {
     $row = $ui.GpoGrid.SelectedItem
-    if (-not $row) { Write-UiLog -Level WARN -Message 'Pick a GPO in the list first.'; return $null }
-    return "$($row.DisplayName)"
+    $gpoName = if ($row) { "$($row.DisplayName)" } else { '' }
+    if (-not $gpoName) { Write-UiLog -Level WARN -Message 'Pick a GPO in the list first.'; return $null }
+    return $gpoName
 }
 
 function Update-GpoLinks {
