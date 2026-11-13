@@ -1,0 +1,9 @@
+# Force LF regardless of a cloning machine's own core.autocrlf setting.
+# Windows PowerShell 5.1 needs LF (a CRLF-corrupted .ps1 can still parse but
+# is not this repo's convention); a bash script with CRLF fails outright on
+# Linux -- the shebang line becomes "#!/usr/bin/env bash\r", which the
+# kernel looks for as a literal (nonexistent) interpreter name.
+*.ps1  text eol=lf
+*.psm1 text eol=lf
+*.psd1 text eol=lf
+*.sh   text eol=lf
