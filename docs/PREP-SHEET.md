@@ -114,7 +114,8 @@ moment the team wants the firewall locked down with zero pauses.
 - Splunk indexer port (blank = default 9997): ______________________
 - Splunk deployment server, if you use one (host:8089): ______________________
 
-Before the round: download the Sysmon zip
+If you get to prep on a persistent machine beforehand (your own laptop, a
+jump box you keep between sessions): download the Sysmon zip
 (https://download.sysinternals.com/files/Sysmon.zip) and the Windows x64
 Splunk Universal Forwarder .msi from splunk.com, and stage them in
 `tools\Sysmon\` and `tools\SplunkForwarder\` respectively (both folders
@@ -122,6 +123,33 @@ are gitignored — nothing about which binaries you're carrying ends up in
 the public repo either). See each module's own help
 (`Get-Help .\modules\Install-Sysmon.ps1 -Full`) for exactly what it
 expects to find there.
+
+**If instead you're handed a blank box fresh at round start** (no persistent
+prep machine — `git clone` is how the toolkit itself arrives, and `tools\`
+is gitignored, so it does NOT come along): this only works if that box has
+outbound internet. Find that out in your first few minutes of access
+(`Test-NetConnection github.com -Port 443` or similar — this is also when
+you find out if `git clone` itself even works). If it does:
+
+```powershell
+# Sysmon: the module does this for you.
+.\modules\Install-Sysmon.ps1 -AllowDownload
+
+# Splunk UF: the module deliberately has NO -AllowDownload (see its own
+# help for why), but this exact URL was confirmed working with no account
+# or EULA click-through on 2026-11-13 -- update the version number if a
+# newer release has shipped by the time you need it (check
+# https://www.splunk.com/en_us/download/universal-forwarder.html -> "copy
+# wget link" for whatever's current):
+New-Item -ItemType Directory -Path .\tools\SplunkForwarder -Force | Out-Null
+Invoke-WebRequest -Uri "https://download.splunk.com/products/universalforwarder/releases/10.6.1.1/windows/splunkforwarder-10.6.1.1-b2ae2962645c-windows-x64.msi" -OutFile ".\tools\SplunkForwarder\splunkforwarder.msi" -UseBasicParsing
+.\modules\Install-SplunkForwarder.ps1
+```
+
+If the box has NO internet at all, there is currently no way to get either
+binary onto it — nothing in this toolkit solves that, and it needs a real
+answer (NETLAB's own file-upload/transfer feature, if your environment has
+one) before assuming Sysmon/Splunk will be available on game day at all.
 
 ## Network recon / packet capture (nmap / Wireshark)
 
