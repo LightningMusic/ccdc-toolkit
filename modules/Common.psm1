@@ -212,6 +212,21 @@ function Invoke-CcdcSafe {
     }
 }
 
+function ConvertFrom-CcdcSecureStringPlain {
+    <#
+    .SYNOPSIS
+        Plaintext from a SecureString, for the one legitimate case of
+        needing the real value -- handing a password to something that
+        has no SecureString-aware API of its own (an external process's
+        stdin, here). Zeroes the unmanaged buffer it briefly allocates.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][securestring]$Secure)
+    $ptr = [Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($Secure)
+    try { return [Runtime.InteropServices.Marshal]::PtrToStringUni($ptr) }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($ptr) }
+}
+
 function New-CcdcHardeningGpo {
     <#
     .SYNOPSIS
@@ -835,7 +850,7 @@ function Get-CcdcInventory {
 
 Export-ModuleMember -Function `
     Start-CcdcSession, Stop-CcdcSession, Write-CcdcLog, Backup-CcdcState, `
-    Invoke-CcdcSafe, Show-CcdcSummary, New-CcdcHardeningGpo, Import-CcdcAnswers, Get-CcdcAnswer, `
+    Invoke-CcdcSafe, Show-CcdcSummary, New-CcdcHardeningGpo, ConvertFrom-CcdcSecureStringPlain, Import-CcdcAnswers, Get-CcdcAnswer, `
     New-CcdcRandomPassword, Get-CcdcInventory, Get-CcdcScoredServiceList, `
     Get-CcdcAdministratorsMember, Test-CcdcElevated, `
     Assert-CcdcElevated, Protect-CcdcSensitiveFolder, `
