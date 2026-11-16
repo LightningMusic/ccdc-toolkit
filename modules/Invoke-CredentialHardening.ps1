@@ -260,6 +260,7 @@ if ($credentialSheet.Count -gt 0) {
     $pcrLines = @($credentialSheet | ForEach-Object { "$($_.Account),$($_.Password)" })
     Set-Content -Path $pcrPath -Value $pcrLines -Encoding UTF8
     Write-CcdcLog -Level WARN -Message "Also wrote a ready-to-submit PCR file (username,password, no header) for a Quotient-style scoring engine: $pcrPath -- review it and submit whichever rows matter to your scoring portal now."
+    Write-CcdcLog -Level WARN -Message "If any of these accounts ALSO need to work on a box with its own separate local passwords (e.g. a mail server that is not AD-joined), run Sync-MailPasswords.ps1 -PcrCsvPath '$pcrPath' against it now too -- AD and that box will not drift back into sync on their own."
     Show-CcdcExfilHelp -FilePath $pcrPath -Purpose "Quotient's PCR tab"
 }
 
