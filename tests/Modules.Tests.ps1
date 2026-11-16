@@ -205,6 +205,68 @@ Describe 'Install-SplunkForwarder: reconfigure an existing install' {
     }
 }
 
+Describe 'Install-Sysmon: nothing staged, network fallback' {
+    It 'defaults to downloading from the Sysinternals URL when nothing is in tools\Sysmon\' {
+        $run = Invoke-ModuleHarness @{
+            Module = 'modules\Install-Sysmon.ps1'
+            Args = @{ BinaryDir = '{WORK}\tools\EmptySysmon' }
+            FakeWebRequest = @{ Fail = $false }
+        }
+        if (-not $run) { return }
+        $run.Completed | Should Be $true
+        (@($run.Calls) | Where-Object { $_ -eq 'Invoke-WebRequest|https://download.sysinternals.com/files/Sysmon.zip' }).Count | Should Be 1
+    }
+
+    It '-AllowDownload:$false never touches the network and says so in the error' {
+        $run = Invoke-ModuleHarness @{
+            Module = 'modules\Install-Sysmon.ps1'
+            Args = @{ AllowDownload = $false; BinaryDir = '{WORK}\tools\EmptySysmon' }
+            FakeWebRequest = @{ Fail = $false }
+        }
+        if (-not $run) { return }
+        $run.Completed | Should Be $true
+        (@($run.Calls) | Where-Object { $_ -match '^Invoke-WebRequest\|' }).Count | Should Be 0
+        (Test-HarnessLog $run 'AllowDownload:\$false was passed') | Should Be $true
+    }
+}
+
+Describe 'Install-SplunkForwarder: nothing staged, network fallback' {
+    It 'defaults to downloading from the pinned URL when nothing is in tools\SplunkForwarder\' {
+        $run = Invoke-ModuleHarness @{
+            Module = 'modules\Install-SplunkForwarder.ps1'
+            Args = @{ WhatIf = $true; IndexerAddress = 'idx.example' }
+            FakeWebRequest = @{ Fail = $false }
+        }
+        if (-not $run) { return }
+        $run.Completed | Should Be $true
+        (@($run.Calls) | Where-Object { $_ -match '^Invoke-WebRequest\|https://download\.splunk\.com/' }).Count | Should Be 1
+    }
+
+    It '-AllowDownload:$false never touches the network and says so in the error' {
+        $run = Invoke-ModuleHarness @{
+            Module = 'modules\Install-SplunkForwarder.ps1'
+            Args = @{ AllowDownload = $false; IndexerAddress = 'idx.example' }
+            FakeWebRequest = @{ Fail = $false }
+        }
+        if (-not $run) { return }
+        $run.Completed | Should Be $true
+        (@($run.Calls) | Where-Object { $_ -match '^Invoke-WebRequest\|' }).Count | Should Be 0
+        (Test-HarnessLog $run 'AllowDownload:\$false was passed') | Should Be $true
+    }
+
+    It 'an explicit -MsiPath that does not exist never falls back to the network' {
+        $run = Invoke-ModuleHarness @{
+            Module = 'modules\Install-SplunkForwarder.ps1'
+            Args = @{ MsiPath = '{WORK}\nope.msi'; IndexerAddress = 'idx.example' }
+            FakeWebRequest = @{ Fail = $false }
+        }
+        if (-not $run) { return }
+        $run.Completed | Should Be $true
+        (@($run.Calls) | Where-Object { $_ -match '^Invoke-WebRequest\|' }).Count | Should Be 0
+        (Test-HarnessLog $run "the -MsiPath you gave doesn't exist") | Should Be $true
+    }
+}
+
 Describe 'Invoke-CCDCToolkit (the main menu)' {
     It 'shows the target-check block BEFORE a YES prompt, and cancels cleanly on anything but YES' {
         $run = Invoke-ModuleHarness @{ Module = 'Invoke-CCDCToolkit.ps1'; Inputs = @('3', 'no', 'Z', '8', 'Q') }

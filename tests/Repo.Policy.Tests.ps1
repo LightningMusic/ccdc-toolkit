@@ -287,7 +287,7 @@ public static class CcdcAmsiProbe {
         ($entries -contains 'nc') | Should Be $true
         $entries.Count | Should BeGreaterThan 10
     }
-    It 'no fetch-and-execute: Invoke-Expression only in the admin console escape hatch, Invoke-WebRequest only in the Sysmon downloader (and the lab service health check, which just GETs a page)' {
+    It 'no fetch-and-execute: Invoke-Expression only in the admin console escape hatch, Invoke-WebRequest only in the Sysmon/Splunk downloaders (and the lab service health check, which just GETs a page)' {
         $bad = @()
         foreach ($f in (Get-RepoFile '.ps1', '.psm1')) {
             $tok = $null; $err = $null
@@ -295,7 +295,7 @@ public static class CcdcAmsiProbe {
             foreach ($c in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true)) {
                 $name = $c.GetCommandName()
                 if ($name -in 'Invoke-Expression', 'iex' -and $f.Name -ne 'Invoke-AdminConsole.ps1') { $bad += "$($f.Name): $name" }
-                if ($name -in 'Invoke-WebRequest', 'iwr', 'Invoke-RestMethod', 'irm' -and $f.Name -notin 'Install-Sysmon.ps1', 'Test-LabServices.ps1') { $bad += "$($f.Name): $name" }   # Test-LabServices only GETs a page to check it works
+                if ($name -in 'Invoke-WebRequest', 'iwr', 'Invoke-RestMethod', 'irm' -and $f.Name -notin 'Install-Sysmon.ps1', 'Install-SplunkForwarder.ps1', 'Test-LabServices.ps1') { $bad += "$($f.Name): $name" }   # Test-LabServices only GETs a page to check it works
             }
         }
         ($bad -join '; ') | Should Be ''

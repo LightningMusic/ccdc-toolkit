@@ -11,16 +11,22 @@
     lowest-risk modules to run, which is exactly why it's worth running
     early and everywhere.
 
-    Binary handling is deliberately local-first: this checks for
-    Sysmon64.exe/Sysmon.exe in a local tools folder before ever touching
-    the network. Pre-stage it there during your setup window (download
-    https://download.sysinternals.com/files/Sysmon.zip from Microsoft and
-    unzip it into tools\Sysmon\) if you don't know whether you'll have
-    internet access once the round starts. Pass -AllowDownload if you do
-    and want this to fetch it for you. Either way, before running whatever
-    binary it finds, this verifies it's Authenticode-signed by Microsoft —
-    it will refuse to run something that isn't, rather than silently
-    executing an unverified .exe with admin rights.
+    Binary handling checks for Sysmon64.exe/Sysmon.exe in a local tools
+    folder FIRST, and only falls back to fetching it from Microsoft's own
+    stable Sysinternals URL if nothing's staged there — downloading is ON
+    by default (-AllowDownload defaults true) since competition boxes are
+    confirmed to have real internet access (the official team pack's own
+    rules say so), and found live at the 2026-11-14 Invitational that a
+    teammate launching this from the admin console's menu has no way to
+    add a flag to that launch — an opt-IN download flag they never see is
+    just a dead end, not a safety feature. Pre-stage it in tools\Sysmon\
+    anyway if you want to (e.g. this box genuinely has no internet, or you
+    just don't want to touch the network at all) — pass -AllowDownload:$false
+    to refuse the fallback and only use a pre-staged copy. Either way,
+    before running whatever binary it finds, this verifies it's
+    Authenticode-signed by Microsoft — it will refuse to run something that
+    isn't, rather than silently executing an unverified .exe with admin
+    rights, so the download defaulting on doesn't mean trusting it blindly.
 
     Config handling: defaults to configs\sysmon\sysmonconfig-export.xml,
     the SwiftOnSecurity community config vendored into this repo (see
@@ -39,21 +45,26 @@
 
 .PARAMETER AllowDownload
     If the binary isn't found locally, fetch it from Microsoft's official
-    Sysinternals download URL. Off by default — see DESCRIPTION for why.
+    Sysinternals download URL. ON by default — see DESCRIPTION for why.
+    Pass -AllowDownload:$false to refuse the network fallback entirely.
 
 .EXAMPLE
     .\Install-Sysmon.ps1 -WhatIf
     Shows what would happen (including which binary/config it found) without installing anything.
 
 .EXAMPLE
-    .\Install-Sysmon.ps1 -AllowDownload
-    Fetches Sysmon from Microsoft if it's not already staged locally, then installs with the bundled config.
+    .\Install-Sysmon.ps1
+    Uses a pre-staged binary if one exists in tools\Sysmon\, otherwise fetches it from Microsoft automatically.
+
+.EXAMPLE
+    .\Install-Sysmon.ps1 -AllowDownload:$false
+    Refuses to touch the network -- fails clearly if nothing is pre-staged.
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [string]$ConfigPath,
     [string]$BinaryDir,
-    [switch]$AllowDownload
+    [bool]$AllowDownload = $true
 )
 
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -Force
@@ -104,7 +115,7 @@ function Find-SysmonBinary {
 $binaryPath = Find-SysmonBinary -Dir $BinaryDir
 
 if (-not $binaryPath -and $AllowDownload) {
-    Write-CcdcLog -Level INFO -Message "No local Sysmon binary found in $BinaryDir — attempting download from Microsoft's official Sysinternals URL (-AllowDownload was set)."
+    Write-CcdcLog -Level INFO -Message "No local Sysmon binary found in $BinaryDir — attempting download from Microsoft's official Sysinternals URL."
     $zipPath = Join-Path $session.LogRoot 'Sysmon.zip'
     $downloadOutcome = Invoke-CcdcSafe -Target 'download.sysinternals.com' -Action 'download Sysmon.zip' -ScriptBlock {
         New-Item -ItemType Directory -Path $BinaryDir -Force | Out-Null
@@ -117,7 +128,8 @@ if (-not $binaryPath -and $AllowDownload) {
 }
 
 if (-not $binaryPath) {
-    Write-CcdcLog -Level ERROR -Message "No Sysmon binary available. Pre-stage it: download https://download.sysinternals.com/files/Sysmon.zip and unzip Sysmon64.exe into $BinaryDir, or re-run with -AllowDownload if you have internet access right now. Nothing changed."
+    $why = if ($AllowDownload) { "the automatic download just failed (check the error above -- likely no internet from this box right now)" } else { "-AllowDownload:`$false was passed, so it never tried the network" }
+    Write-CcdcLog -Level ERROR -Message "No Sysmon binary available ($why). Stage it by hand: download https://download.sysinternals.com/files/Sysmon.zip and unzip Sysmon64.exe into $BinaryDir, then re-run. Nothing changed."
     Stop-CcdcSession
     return
 }

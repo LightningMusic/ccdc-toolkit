@@ -6,15 +6,25 @@
     centralized before you need them," alongside Install-Sysmon.ps1.
 
 .DESCRIPTION
-    Unlike Sysmon, there is deliberately NO -AllowDownload option here.
-    Splunk's download flow goes through their website (account/EULA
-    click-through, versioned redirect URLs) rather than one stable,
-    directly-scriptable link the way Sysinternals' does — trying to
-    automate that reliably would be exactly the kind of "clever but
-    breaks in a way you can't debug live" thing this toolkit is built to
-    avoid. Download the Windows x64 MSI from splunk.com yourself during
-    your setup window and drop it in tools\SplunkForwarder\ — this module
-    picks up whatever .msi it finds there.
+    Checks tools\SplunkForwarder\ for an .msi FIRST, same local-first
+    pattern as Install-Sysmon.ps1. If nothing's staged there, -AllowDownload
+    (on by default, same reasoning as Sysmon's — competition boxes have
+    real internet per the official team pack, and a teammate launching this
+    from the admin console's menu has no way to pass a flag anyway) fetches
+    one from a PINNED direct-download URL (-DownloadUrl), confirmed working
+    with no account/EULA click-through as of 2026-11-13.
+
+    Unlike Sysmon's URL (Microsoft's own, version-free, always current),
+    Splunk's download path embeds an exact version AND a release-specific
+    hash in the filename — there is no stable "latest" link to point at, so
+    the pinned default WILL go stale once Splunk ships a newer release.
+    When it does, this fails with a clear error rather than silently
+    installing something wrong: check
+    https://www.splunk.com/en_us/download/universal-forwarder.html -> "copy
+    wget link" for whatever's current, and pass it as -DownloadUrl (or just
+    download it by hand into tools\SplunkForwarder\ — the local-first check
+    always wins over downloading). Either way, whatever .msi ends up being
+    used gets its Authenticode signature checked before install.
 
     Every value that's specific to your environment — the indexer address,
     optionally a deployment server — comes from config\answers.local.psd1
@@ -32,6 +42,17 @@
 .PARAMETER MsiPath
     Path to the Splunk Universal Forwarder .msi. Defaults to whatever
     single .msi it finds in tools\SplunkForwarder\ under the repo root.
+
+.PARAMETER AllowDownload
+    If no .msi is staged locally, fetch one from -DownloadUrl. ON by
+    default — see DESCRIPTION. Pass -AllowDownload:$false to refuse the
+    network fallback and only ever use a pre-staged copy.
+
+.PARAMETER DownloadUrl
+    Direct download URL to use when falling back to the network. Defaults
+    to a specific pinned Splunk UF 10.6.1.1 release, confirmed working
+    without login as of 2026-11-13 — see DESCRIPTION for why this WILL go
+    stale and what to do when it does.
 
 .PARAMETER IndexerAddress
     Your Splunk indexer's hostname or IP. Pulled from config\answers.local.psd1
@@ -52,10 +73,20 @@
 
 .EXAMPLE
     .\Install-SplunkForwarder.ps1 -IndexerAddress 'splunk-idx01' -IndexerPort 9997
+
+.EXAMPLE
+    .\Install-SplunkForwarder.ps1 -AllowDownload:$false
+    Refuses to touch the network -- fails clearly if nothing is pre-staged.
+
+.EXAMPLE
+    .\Install-SplunkForwarder.ps1 -DownloadUrl 'https://download.splunk.com/products/universalforwarder/releases/<newer-version>/windows/splunkforwarder-<newer-version>-<hash>-windows-x64.msi'
+    Use once the pinned default version has gone stale.
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [string]$MsiPath,
+    [bool]$AllowDownload = $true,
+    [string]$DownloadUrl = 'https://download.splunk.com/products/universalforwarder/releases/10.6.1.1/windows/splunkforwarder-10.6.1.1-b2ae2962645c-windows-x64.msi',
     [string]$IndexerAddress,
     [int]$IndexerPort = 9997,
     [string]$DeploymentServer
@@ -69,10 +100,10 @@ Write-CcdcLog -Level INFO -Message "Splunk Universal Forwarder install/update st
 Assert-CcdcElevated -Because "installing/reconfiguring a Windows service"
 
 # ---------------------------------------------------------------------------
-# 1. Find the MSI — local only, no download path. See DESCRIPTION for why.
+# 1. Find the MSI — local-first, network fallback only if nothing's staged.
 # ---------------------------------------------------------------------------
+$toolsDir = Join-Path (Join-Path $root 'tools') 'SplunkForwarder'
 if (-not $MsiPath) {
-    $toolsDir = Join-Path (Join-Path $root 'tools') 'SplunkForwarder'
     if (Test-Path $toolsDir) {
         $found = @(Get-ChildItem -Path $toolsDir -Filter '*.msi' -ErrorAction SilentlyContinue)
         if ($found.Count -eq 1) {
@@ -85,8 +116,22 @@ if (-not $MsiPath) {
     }
 }
 
+if ((-not $MsiPath -or -not (Test-Path $MsiPath)) -and $AllowDownload -and -not $PSBoundParameters.ContainsKey('MsiPath')) {
+    Write-CcdcLog -Level INFO -Message "No local .msi found in $toolsDir — attempting download from the pinned URL: $DownloadUrl"
+    Write-CcdcLog -Level WARN -Message "This URL is version-pinned and WILL eventually go stale — if the download fails, check https://www.splunk.com/en_us/download/universal-forwarder.html -> 'copy wget link' and pass the current one as -DownloadUrl."
+    $downloadDest = Join-Path $toolsDir (Split-Path -Leaf $DownloadUrl)
+    $downloadOutcome = Invoke-CcdcSafe -Target 'download.splunk.com' -Action 'download Splunk Universal Forwarder .msi' -ScriptBlock {
+        New-Item -ItemType Directory -Path $toolsDir -Force | Out-Null
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $downloadDest -UseBasicParsing -ErrorAction Stop
+    }
+    if ($downloadOutcome.Success) { $MsiPath = $downloadDest }
+}
+
 if (-not $MsiPath -or -not (Test-Path $MsiPath)) {
-    Write-CcdcLog -Level ERROR -Message "No Splunk Universal Forwarder .msi found. Download the Windows x64 UF installer from splunk.com during your setup window and put it in tools\SplunkForwarder\ (or pass -MsiPath). Nothing changed."
+    $why = if ($PSBoundParameters.ContainsKey('MsiPath')) { "the -MsiPath you gave doesn't exist" }
+        elseif ($AllowDownload) { "the automatic download just failed (check the error above -- likely no internet from this box right now, or the pinned version has gone stale)" }
+        else { "-AllowDownload:`$false was passed, so it never tried the network" }
+    Write-CcdcLog -Level ERROR -Message "No Splunk Universal Forwarder .msi available ($why). Stage it by hand: download the Windows x64 UF installer from splunk.com and put it in tools\SplunkForwarder\ (or pass -MsiPath), then re-run. Nothing changed."
     Stop-CcdcSession
     return
 }

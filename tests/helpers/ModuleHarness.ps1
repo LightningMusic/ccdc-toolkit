@@ -21,6 +21,8 @@
       BackdateFiles relative paths whose timestamps are set a year back, so a test can tell "recently modified" from "always been there" (optional)
       Env           environment variables to set for the run; "{WORK}" is replaced (optional)
       FakeSplunkService  $true = fake Restart-Service / Get-Service for the forwarder (optional)
+      FakeWebRequest  { Fail: bool } = stand in for Invoke-WebRequest: records the URL called
+                      and either writes placeholder bytes to -OutFile or throws (optional)
       Iis           stand-in WebAdministration module (see New-IisStubModule.ps1): { Sites, AppPools, FtpLow, FtpHigh, ... }
       HyperV        fake Hyper-V + PowerShell Direct: { VMs: [{Name,State,Notes,Checkpoints}], Switches: [..] } (optional)
       SecureArgs    name -> plain text, passed to the script as a SecureString (optional)
@@ -254,6 +256,16 @@ if ($spec.FakeLocalUsers) {
     $global:FakeUsers = @($spec.FakeLocalUsers)
     function global:Get-LocalUser { param($Name, $ErrorAction) foreach ($n in $global:FakeUsers) { [pscustomobject]@{ Name = $n; Enabled = $true } } }
     function global:Set-LocalUser { param($Name, $Password, $ErrorAction) $global:Calls.Add("Set-LocalUser|$Name") }
+}
+
+if ($spec.FakeWebRequest) {
+    $global:FakeWebRequestShouldFail = [bool]$spec.FakeWebRequest.Fail
+    function global:Invoke-WebRequest {
+        param($Uri, $OutFile, [switch]$UseBasicParsing, $ErrorAction)
+        $global:Calls.Add("Invoke-WebRequest|$Uri")
+        if ($global:FakeWebRequestShouldFail) { throw "fake network failure (FakeWebRequest.Fail was set)" }
+        if ($OutFile) { Set-Content -Path $OutFile -Value 'FAKE-DOWNLOADED-BYTES' -Encoding UTF8 }
+    }
 }
 
 # --- run ----------------------------------------------------------------------------------------------
