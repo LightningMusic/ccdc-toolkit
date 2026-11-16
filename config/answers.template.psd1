@@ -76,4 +76,13 @@
     # "OU=Users,DC=domain,DC=local"). Leave blank to use AD's own default
     # location.
     DefaultOU       = ''
+
+    # Used by Show-CcdcExfilHelp (called from Invoke-CredentialHardening.ps1
+    # and other modules that produce a file you need to get OUT of an
+    # isolated competition VM -- e.g. a Quotient PCR CSV). Your team's
+    # unauthenticated Nextcloud "Uploads" short link (Team-XX > Uploads, from
+    # docs.ccdc.events) -- this is the sanctioned way to move a file from
+    # inside the environment to a browser you actually control. Leave blank
+    # to get typed-out instructions instead of an auto-opened link.
+    NextcloudUploadUrl = ''
 }

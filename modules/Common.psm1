@@ -348,6 +348,55 @@ function Show-CcdcSummary {
     $script:CcdcResults.Clear()
 }
 
+function Show-CcdcExfilHelp {
+    <#
+    .SYNOPSIS
+        Tells the operator exactly how to get a file OUT of an isolated
+        competition VM, using the one sanctioned channel for this (a
+        team-specific, unauthenticated Nextcloud upload link, reachable
+        from inside the environment) -- confirmed live at the 2026-11-14
+        MWCCDC Invitational, where this did not exist and a 700+-row PCR
+        CSV had no way out of the VM console until it was found.
+
+        This is deliberately NOT an automated upload: the link is
+        unauthenticated-upload-only (you can't read it back from here to
+        confirm), and this toolkit has no business making outbound web
+        requests with competition data on your behalf without you watching.
+        It opens a browser to the link (if one is on file and this host has
+        a desktop session) and tells you the next step; it doesn't do the
+        upload itself.
+
+    .PARAMETER FilePath
+        The file that needs to leave this VM.
+
+    .PARAMETER Purpose
+        One line of context for why ("Quotient's PCR tab", "this inject's
+        PDF submission to NISE", etc.) -- shown in the instructions so they
+        make sense out of context later in a transcript.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$FilePath,
+        [Parameter(Mandatory)][string]$Purpose
+    )
+
+    $uploadUrl = Get-CcdcAnswer -Key 'NextcloudUploadUrl' -Prompt 'Your team''s Nextcloud unauthenticated Uploads link (Team-XX > Uploads, from docs.ccdc.events) -- blank to skip and get instructions instead' -Default ''
+
+    Write-CcdcLog -Level WARN -Message "Get '$FilePath' out of this VM for $Purpose -- open a browser ON THIS BOX (competition VMs have real internet access), go to your team's Nextcloud Uploads link, and upload it there. Then from a SEPARATE browser on your own machine, logged into https://docs.ccdc.events/ with your NISE credentials, download it from Team-XX > Uploads."
+
+    if ($uploadUrl) {
+        Write-CcdcLog -Level INFO -Message "Saved upload link: $uploadUrl"
+        try {
+            Start-Process $uploadUrl -ErrorAction Stop
+            Write-CcdcLog -Level OK -Message "Opened it in your default browser -- drag '$FilePath' in."
+        } catch {
+            Write-CcdcLog -Level INFO -Message "Couldn't auto-open a browser here ($($_.Exception.Message)) -- open the link above by hand."
+        }
+    } else {
+        Write-CcdcLog -Level INFO -Message "No upload link on file. Find it on docs.ccdc.events (or wherever your team pack/coach gave it to you), then save it as NextcloudUploadUrl in config\answers.local.psd1 so this opens it directly next time."
+    }
+}
+
 function Import-CcdcAnswers {
     <#
     .SYNOPSIS
@@ -851,6 +900,7 @@ function Get-CcdcInventory {
 Export-ModuleMember -Function `
     Start-CcdcSession, Stop-CcdcSession, Write-CcdcLog, Backup-CcdcState, `
     Invoke-CcdcSafe, Show-CcdcSummary, New-CcdcHardeningGpo, ConvertFrom-CcdcSecureStringPlain, Import-CcdcAnswers, Get-CcdcAnswer, `
+    Show-CcdcExfilHelp, `
     New-CcdcRandomPassword, Get-CcdcInventory, Get-CcdcScoredServiceList, `
     Get-CcdcAdministratorsMember, Test-CcdcElevated, `
     Assert-CcdcElevated, Protect-CcdcSensitiveFolder, `

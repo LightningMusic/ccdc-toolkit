@@ -182,7 +182,10 @@ if ($Zip -and (Test-Path -LiteralPath $evidenceDir)) {
         $zipOutcome = Invoke-CcdcSafe -Target $evidenceDir -Action 'compress evidence folder' -ScriptBlock {
             Compress-Archive -Path (Join-Path $evidenceDir '*') -DestinationPath $zipPath -Force -ErrorAction Stop
         }
-        if ($zipOutcome.Success) { Write-CcdcLog -Level OK -Message "Zipped -> $zipPath" }
+        if ($zipOutcome.Success) {
+            Write-CcdcLog -Level OK -Message "Zipped -> $zipPath"
+            Show-CcdcExfilHelp -FilePath $zipPath -Purpose "attaching as evidence to an incident report or inject response"
+        }
     }
 }
 

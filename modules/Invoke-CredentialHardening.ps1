@@ -260,6 +260,7 @@ if ($credentialSheet.Count -gt 0) {
     $pcrLines = @($credentialSheet | ForEach-Object { "$($_.Account),$($_.Password)" })
     Set-Content -Path $pcrPath -Value $pcrLines -Encoding UTF8
     Write-CcdcLog -Level WARN -Message "Also wrote a ready-to-submit PCR file (username,password, no header) for a Quotient-style scoring engine: $pcrPath -- review it and submit whichever rows matter to your scoring portal now."
+    Show-CcdcExfilHelp -FilePath $pcrPath -Purpose "Quotient's PCR tab"
 }
 
 Show-CcdcSummary

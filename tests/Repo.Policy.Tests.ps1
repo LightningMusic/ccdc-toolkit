@@ -172,8 +172,13 @@ Describe 'nothing environment-specific or fingerprintable in a public repo' {
                     # 172.17.0.x / 172.16.0.x are the real-topology rebuild's
                     # (lab\LabCommon.psm1's Get-CcdcLabPlan) -- all fake, lab-only
                     # addresses, same exemption as before, just three ranges now
-                    # instead of one.
-                    if ($m.Value -match '^(10\.10\.10\.\d{1,3}|172\.20\.240\.\d{1,3}|172\.17\.0\.\d{1,3}|172\.16\.0\.\d{1,3}|127\.0\.0\.1|0\.0\.0\.0)$') { continue }
+                    # instead of one. 10.6.1.1 is a pinned Splunk Universal
+                    # Forwarder RELEASE VERSION embedded in PREP-SHEET.md's
+                    # tested direct-download URL (docs\PREP-SHEET.md), not an
+                    # IP -- there's no wildcard option here, the URL needs an
+                    # exact version to work. Update this value (and the URL)
+                    # together when a newer release ships.
+                    if ($m.Value -match '^(10\.10\.10\.\d{1,3}|172\.20\.240\.\d{1,3}|172\.17\.0\.\d{1,3}|172\.16\.0\.\d{1,3}|127\.0\.0\.1|0\.0\.0\.0|10\.6\.1\.1)$') { continue }
                     if ($f.Name -eq 'Invoke-FirewallBaseline.ps1' -and $line -match '\\d\{1,3\}') { continue }
                     $bad += "$(Get-RelativeName $f):$n $($m.Value)"
                 }

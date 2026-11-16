@@ -56,6 +56,48 @@ Describe 'New-CcdcRandomPassword' {
     }
 }
 
+Describe 'Show-CcdcExfilHelp' {
+    Context 'a saved upload link exists' {
+        BeforeAll {
+            Import-Module (Join-Path $script:RepoRoot 'modules\Common.psm1') -Force
+            $script:Tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("ccdc-test-" + [guid]::NewGuid())
+            New-Item -ItemType Directory -Path (Join-Path $script:Tmp 'config') -Force | Out-Null
+            Set-Content -Path (Join-Path $script:Tmp 'config\answers.local.psd1') -Value "@{ NextcloudUploadUrl = 'https://docs.ccdc.events/s/abc123' }" -Encoding UTF8
+            Import-CcdcAnswers -RootPath $script:Tmp | Out-Null
+        }
+
+        It 'opens it in the default browser and names the file and purpose' {
+            Mock Start-Process {} -ModuleName Common
+            Mock Write-CcdcLog {} -ModuleName Common
+            Show-CcdcExfilHelp -FilePath 'C:\fake\pcr.csv' -Purpose 'testing this helper'
+            Assert-MockCalled Start-Process -ModuleName Common -Times 1 -ParameterFilter { $FilePath -eq 'https://docs.ccdc.events/s/abc123' }
+            Assert-MockCalled Write-CcdcLog -ModuleName Common -ParameterFilter { $Message -match 'pcr\.csv' -and $Message -match 'testing this helper' }
+        }
+
+        It 'does not throw if there is no desktop session to open a browser in' {
+            Mock Start-Process { throw 'no desktop session' } -ModuleName Common
+            { Show-CcdcExfilHelp -FilePath 'C:\fake\pcr.csv' -Purpose 'testing' } | Should Not Throw
+        }
+    }
+
+    Context 'no upload link is on file' {
+        BeforeAll {
+            Import-Module (Join-Path $script:RepoRoot 'modules\Common.psm1') -Force
+            $script:Tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("ccdc-test-" + [guid]::NewGuid())
+            New-Item -ItemType Directory -Path (Join-Path $script:Tmp 'config') -Force | Out-Null
+            Set-Content -Path (Join-Path $script:Tmp 'config\answers.local.psd1') -Value "@{ NextcloudUploadUrl = '' }" -Encoding UTF8
+            Import-CcdcAnswers -RootPath $script:Tmp | Out-Null
+        }
+
+        It 'never tries to open a browser when no link is on file' {
+            Mock Start-Process {} -ModuleName Common
+            Mock Read-Host { '' } -ModuleName Common
+            Show-CcdcExfilHelp -FilePath 'C:\fake\pcr.csv' -Purpose 'testing'
+            Assert-MockCalled Start-Process -ModuleName Common -Times 0
+        }
+    }
+}
+
 Describe 'Read-CcdcInput' {
     BeforeAll { Import-Module (Join-Path $script:RepoRoot 'modules\Common.psm1') -Force }
 

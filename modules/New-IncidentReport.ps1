@@ -500,5 +500,7 @@ Write-Host ""
 Write-Host "Read it through before you submit. Judges score clarity and business" -ForegroundColor Yellow
 Write-Host "form, and the words in it should be yours." -ForegroundColor Yellow
 
+Show-CcdcExfilHelp -FilePath $htmlPath -Purpose "submitting as a PDF to NISE/the White Team -- convert the .html to .pdf first (see the two options above), then get the .pdf out the same way"
+
 Show-CcdcSummary
 Stop-CcdcSession
