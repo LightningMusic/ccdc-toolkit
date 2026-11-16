@@ -23,6 +23,9 @@
       FakeSplunkService  $true = fake Restart-Service / Get-Service for the forwarder (optional)
       FakeWebRequest  { Fail: bool } = stand in for Invoke-WebRequest: records the URL called
                       and either writes placeholder bytes to -OutFile or throws (optional)
+      FakeSsh         { ExitCode: int, Output: string } = stand in for `& ssh.exe ...`: records
+                      the arguments AND whatever was piped to it on stdin, prints -Output,
+                      and sets $LASTEXITCODE to -ExitCode (optional)
       Iis           stand-in WebAdministration module (see New-IisStubModule.ps1): { Sites, AppPools, FtpLow, FtpHigh, ... }
       HyperV        fake Hyper-V + PowerShell Direct: { VMs: [{Name,State,Notes,Checkpoints}], Switches: [..] } (optional)
       SecureArgs    name -> plain text, passed to the script as a SecureString (optional)
@@ -265,6 +268,17 @@ if ($spec.FakeWebRequest) {
         $global:Calls.Add("Invoke-WebRequest|$Uri")
         if ($global:FakeWebRequestShouldFail) { throw "fake network failure (FakeWebRequest.Fail was set)" }
         if ($OutFile) { Set-Content -Path $OutFile -Value 'FAKE-DOWNLOADED-BYTES' -Encoding UTF8 }
+    }
+}
+
+if ($spec.FakeSsh) {
+    $global:FakeSshExitCode = [int]$spec.FakeSsh.ExitCode
+    $global:FakeSshOutput = "$($spec.FakeSsh.Output)"
+    function global:ssh.exe {
+        $stdinText = ($input | Out-String)
+        $global:Calls.Add("ssh.exe|$($args -join ' ')|STDIN:$stdinText")
+        if ($global:FakeSshOutput) { Write-Output $global:FakeSshOutput }
+        $global:LASTEXITCODE = $global:FakeSshExitCode
     }
 }
 

@@ -205,6 +205,67 @@ Describe 'Install-SplunkForwarder: reconfigure an existing install' {
     }
 }
 
+Describe 'Sync-MailPasswords' {
+    It 'syncs every account in one ssh/chpasswd call and reports accounts chpasswd could not find' {
+        $run = Invoke-ModuleHarness @{
+            Module = 'modules\Sync-MailPasswords.ps1'
+            Args = @{ MailHost = '172.20.240.15' }
+            ExtraFiles = @{ 'logs\credentials_2026-11-14_080000_pcr.csv' = "alice,Pw1Secret`nbob,Pw2Secret`n" }
+            FakeSsh = @{ ExitCode = 0; Output = "chpasswd: user 'bob' does not exist" }
+        }
+        if (-not $run) { return }
+        $run.Completed | Should Be $true
+        $sshCalls = @($run.Calls | Where-Object { $_ -match '^ssh\.exe\|' })
+        $sshCalls.Count | Should Be 1
+        $sshCalls[0] | Should Match 'root@172\.20\.240\.15'
+        $sshCalls[0] | Should Match 'chpasswd'
+        $sshCalls[0] | Should Match 'alice:Pw1Secret'
+        $sshCalls[0] | Should Match 'bob:Pw2Secret'
+        (Test-HarnessLog $run '1 of 2 account') | Should Be $true
+        (Test-HarnessLog $run "1 account\(s\) have no matching local account.*bob") | Should Be $true
+    }
+
+    It 'a non-root user routes through sudo -S, with the sudo password as the first stdin line' {
+        $run = Invoke-ModuleHarness @{
+            Module = 'modules\Sync-MailPasswords.ps1'
+            Args = @{ MailHost = '172.20.240.15'; Username = 'sysadmin' }
+            ExtraFiles = @{ 'logs\credentials_2026-11-14_080000_pcr.csv' = "alice,Pw1Secret`n" }
+            FakeSsh = @{ ExitCode = 0; Output = '' }
+            Inputs = @('sudoSecret1')
+        }
+        if (-not $run) { return }
+        $run.Completed | Should Be $true
+        $sshCalls = @($run.Calls | Where-Object { $_ -match '^ssh\.exe\|' })
+        $sshCalls[0] | Should Match 'sysadmin@172\.20\.240\.15'
+        $sshCalls[0] | Should Match 'sudo -S chpasswd'
+        $sshCalls[0] | Should Match "STDIN:sudoSecret1`r?`nalice:Pw1Secret"
+    }
+
+    It 'never touches the network under -WhatIf' {
+        $run = Invoke-ModuleHarness @{
+            Module = 'modules\Sync-MailPasswords.ps1'
+            Args = @{ MailHost = '172.20.240.15'; WhatIf = $true }
+            ExtraFiles = @{ 'logs\credentials_2026-11-14_080000_pcr.csv' = "alice,Pw1Secret`n" }
+            FakeSsh = @{ ExitCode = 0; Output = '' }
+        }
+        if (-not $run) { return }
+        $run.Completed | Should Be $true
+        (@($run.Calls) | Where-Object { $_ -match '^ssh\.exe\|' }).Count | Should Be 0
+    }
+
+    It 'with no PCR file anywhere and none given, errors clearly and never touches the network' {
+        $run = Invoke-ModuleHarness @{
+            Module = 'modules\Sync-MailPasswords.ps1'
+            Args = @{ MailHost = '172.20.240.15' }
+            FakeSsh = @{ ExitCode = 0; Output = '' }
+        }
+        if (-not $run) { return }
+        $run.Completed | Should Be $true
+        (@($run.Calls) | Where-Object { $_ -match '^ssh\.exe\|' }).Count | Should Be 0
+        (Test-HarnessLog $run 'No logs\\credentials_\*_pcr\.csv found') | Should Be $true
+    }
+}
+
 Describe 'Install-Sysmon: nothing staged, network fallback' {
     It 'defaults to downloading from the Sysinternals URL when nothing is in tools\Sysmon\' {
         $run = Invoke-ModuleHarness @{
