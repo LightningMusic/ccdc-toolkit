@@ -280,12 +280,14 @@
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,11">
                         <ComboBox x:Name="AccountScopeCombo" Width="150" Margin="0,0,9,0"/>
                         <TextBox x:Name="AccountFilterBox" Width="230" Margin="0,0,9,0" ToolTip="Part of a name; blank lists everything"/>
+                        <CheckBox x:Name="AccountAdminOnlyCheck" Content="Admins only" VerticalAlignment="Center" Margin="0,0,9,0" ToolTip="Show only accounts in a privileged group (Administrators, Domain/Enterprise/Schema Admins) -- the fast way to confirm nobody but your own admin account(s) have it"/>
                         <Button x:Name="AccountSearchButton" Content="List accounts" Style="{StaticResource Primary}"/>
                     </StackPanel>
                     <DataGrid x:Name="AccountGrid" Grid.Row="2">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
                             <DataGridTextColumn Header="Enabled" Binding="{Binding Enabled}" Width="80"/>
+                            <DataGridTextColumn Header="Admin" Binding="{Binding IsAdmin}" Width="70"/>
                             <DataGridTextColumn Header="Last logon" Binding="{Binding LastLogon}" Width="150"/>
                             <DataGridTextColumn Header="Password set" Binding="{Binding PasswordSet}" Width="150"/>
                             <DataGridTextColumn Header="Groups / note" Binding="{Binding Note}" Width="*"/>

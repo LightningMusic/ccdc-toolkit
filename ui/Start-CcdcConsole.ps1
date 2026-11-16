@@ -123,7 +123,7 @@ $script:ControlNames = @(
     'HealthPill', 'HealthPillText', 'HostText', 'DomainText', 'UserText', 'ElevatedText',
     'RefreshButton', 'OpenLogsButton', 'ElevationBanner', 'ElevationBannerText',
     'HealthCards', 'ScoredGrid',
-    'AccountScopeCombo', 'AccountFilterBox', 'AccountSearchButton', 'AccountGrid',
+    'AccountScopeCombo', 'AccountFilterBox', 'AccountAdminOnlyCheck', 'AccountSearchButton', 'AccountGrid',
     'AccountResetButton', 'AccountDisableButton', 'AccountEnableButton',
     'AccountGroupBox', 'AccountAddGroupButton', 'AccountRemoveGroupButton', 'AccountNewName', 'AccountNewGroup', 'AccountCreateButton',
     'DnsZoneGrid', 'DnsListZonesButton', 'DnsRecordGrid', 'DnsListRecordsButton',
@@ -455,6 +455,11 @@ Import-Module (Join-Path $RepoRoot 'modules\Common.psm1') -Force
 $log = New-Object System.Collections.Generic.List[object]
 $rows = New-Object System.Collections.Generic.List[object]
 $filter = "$($Arg.Filter)"
+$adminOnly = [bool]$Arg.AdminOnly
+# The classic privileged AD groups -- membership in ANY of these is "has
+# admin," the same set Invoke-ThreatHunt.ps1 watches for new members in
+# (plus Schema Admins, which it does not currently track).
+$privilegedGroups = 'Domain Admins', 'Enterprise Admins', 'Schema Admins', 'Administrators'
 
 if ($Arg.Scope -eq 'Active Directory') {
     if (-not (Get-Command Get-ADUser -ErrorAction SilentlyContinue)) {
@@ -464,8 +469,11 @@ if ($Arg.Scope -eq 'Active Directory') {
         foreach ($u in $users) {
             if ($filter -and $u.SamAccountName -notlike "*$filter*") { continue }
             $groups = @($u.MemberOf | ForEach-Object { ($_ -split ',')[0] -replace '^CN=', '' })
+            $isAdmin = [bool]@($groups | Where-Object { $privilegedGroups -contains $_ }).Count
+            if ($adminOnly -and -not $isAdmin) { continue }
             $rows.Add([pscustomobject]@{
                 Name = $u.SamAccountName; Enabled = $u.Enabled
+                IsAdmin = $(if ($isAdmin) { 'YES' } else { '' })
                 LastLogon = $(if ($u.LastLogonDate) { $u.LastLogonDate.ToString('yyyy-MM-dd HH:mm') } else { 'never' })
                 PasswordSet = $(if ($u.PasswordLastSet) { $u.PasswordLastSet.ToString('yyyy-MM-dd') } else { 'never' })
                 Note = ($groups -join ', ')
@@ -480,11 +488,14 @@ if ($Arg.Scope -eq 'Active Directory') {
         try { $admins = @(Get-LocalGroupMember -Group 'Administrators' -ErrorAction Stop | ForEach-Object { ($_.Name -split '\\')[-1] }) } catch { }
         foreach ($u in (Get-LocalUser -ErrorAction Stop)) {
             if ($filter -and $u.Name -notlike "*$filter*") { continue }
+            $isAdmin = $admins -contains $u.Name
+            if ($adminOnly -and -not $isAdmin) { continue }
             $rows.Add([pscustomobject]@{
                 Name = $u.Name; Enabled = $u.Enabled
+                IsAdmin = $(if ($isAdmin) { 'YES' } else { '' })
                 LastLogon = $(if ($u.LastLogon) { $u.LastLogon.ToString('yyyy-MM-dd HH:mm') } else { 'never' })
                 PasswordSet = $(if ($u.PasswordLastSet) { $u.PasswordLastSet.ToString('yyyy-MM-dd') } else { 'never' })
-                Note = $(if ($admins -contains $u.Name) { 'LOCAL ADMINISTRATOR' } else { '' })
+                Note = $(if ($isAdmin) { 'LOCAL ADMINISTRATOR' } else { '' })
             })
         }
     }
@@ -1108,12 +1119,14 @@ $ui.AccountScopeCombo.SelectedIndex = 0
 
 function Update-Accounts {
     $scope = "$($ui.AccountScopeCombo.SelectedItem)"
+    $adminOnly = [bool]$ui.AccountAdminOnlyCheck.IsChecked
     Start-UiWork -Status "Listing $scope accounts..." -ScriptText $script:WorkAccounts `
-        -Arguments @{ Scope = $scope; Filter = $ui.AccountFilterBox.Text } -OnDone {
+        -Arguments @{ Scope = $scope; Filter = $ui.AccountFilterBox.Text; AdminOnly = $adminOnly } -OnDone {
         param($result)
         $rows = @($result.Data)
         $ui.AccountGrid.ItemsSource = $rows
-        Write-UiLog -Level INFO -Message "$($rows.Count) account(s) listed."
+        $suffix = if ($adminOnly) { " (admins only)" } else { "" }
+        Write-UiLog -Level INFO -Message "$($rows.Count) account(s) listed$suffix."
     }
 }
 
@@ -1716,6 +1729,7 @@ Register-UiClick -Button $ui.ServiceSetStartupButton -Action {
 }
 
 $ui.AccountFilterBox.Add_KeyDown({ if ($_.Key -eq 'Return') { try { Update-Accounts } catch { } } })
+$ui.AccountAdminOnlyCheck.Add_Click({ try { Update-Accounts } catch { } })
 $ui.ServiceFilterBox.Add_KeyDown({ if ($_.Key -eq 'Return') { try { Update-Services } catch { } } })
 
 $window.Add_Closing({
